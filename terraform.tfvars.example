@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and edit. Only project_id is required.
+project_id  = "my-pipewright-dev"
+region      = "us-central1"
+environment = "dev"
+
+# App teams. Each gets a runner service account, a BigQuery dataset and a landing prefix under incoming/.
+tenants = {
+  demo = {
+    members = ["user:you@example.com"]   # may start runs and read retrain cases
+  }
+}
+
+# People or CI identities who release use cases (project owners already can).
+operators = ["user:you@example.com"]
+
+# Approver groups for retrain decisions. Use cases name them in retraining.approvals.required.
+approver_groups = {
+  ml-leads = { members = ["user:you@example.com"], description = "ML leads" }
+}
+
+policies = {
+  promote_model = "manual"
+  deploy_model  = "manual"
+}
+
+# Second apply: the launcher image printed by scripts/publish_launcher.sh.
+# launcher_image = "us-central1-docker.pkg.dev/my-pipewright-dev/pw-images/pipewright-launcher@sha256:..."

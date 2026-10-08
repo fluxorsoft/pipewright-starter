@@ -1,0 +1,21 @@
+# Terraform state and plans: may contain sensitive values. Keep state in a bucket for shared environments.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform.tfvars
+*.auto.tfvars
+.terraform.tfstate.lock.info
+
+# Local settings and secrets
+.env
+*.pem
+*.key
+credentials*.json
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
