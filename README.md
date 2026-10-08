@@ -104,9 +104,9 @@ schedules, alerts, retrain decisions, serving and CI.
 ## Questions, help and production environments
 
 Want help setting up Pipewright, or an environment with private networking, customer-managed keys and guardrails?
-Get in touch with **Rakesh Gupta** on LinkedIn or through [Fluxor Software](https://www.fluxorsoft.com/pipewright.html).
-Questions and ideas are welcome in the Pipewright repository's GitHub Discussions.
-<!-- TODO: add the LinkedIn profile URL to "Rakesh Gupta" above. -->
+Email [hello@fluxorsoft.com](mailto:hello@fluxorsoft.com), or see
+[Fluxor Software](https://www.fluxorsoft.com/pipewright.html). Questions and ideas are welcome in the Pipewright
+repository's GitHub Discussions.
 
 ## License
 
