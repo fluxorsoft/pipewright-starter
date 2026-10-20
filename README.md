@@ -25,13 +25,17 @@ top of the same building blocks.
 - A Google Cloud project with billing enabled, and permission to create the resources above (Owner is simplest).
 - [Terraform](https://developer.hashicorp.com/terraform/install) 1.9 or later, the
   [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) (`gcloud auth application-default login`), Docker
-  and [uv](https://docs.astral.sh/uv/).
-- A Pipewright checkout next to this one:
+  (to copy the launcher image into your registry) and Python 3.11 (for the `pipewright` command).
+- This repository:
 
 ```bash
-git clone https://github.com/fluxorsoft/pipewright.git
-git clone <this repository> pipewright-starter
+git clone https://github.com/fluxorsoft/pipewright-starter.git
 ```
+
+You do not need a Pipewright checkout: the CLI comes from PyPI and the launcher image from GitHub Container
+Registry. Clone [Pipewright](https://github.com/fluxorsoft/pipewright) next to this one only if you want to build
+the launcher from source (`scripts/publish_launcher.sh <repository> --build`, which also needs
+[uv](https://docs.astral.sh/uv/)).
 
 ## Build the environment
 
@@ -44,15 +48,19 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.0.0 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-Behind a TLS-inspecting proxy, set `PIP_CA=<ca-bundle.pem>` for `publish_launcher.sh`, or run Terraform in Docker
-with the bundle mounted (`SSL_CERT_FILE`).
+The script copies the 1.0.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+repository by digest, and fails unless the stored digest equals the released one. For another release, pass
+`--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
+
+Behind a TLS-inspecting proxy, run Terraform in Docker with the bundle mounted (`SSL_CERT_FILE`); when building the
+launcher with `--build`, also set `PIP_CA=<ca-bundle.pem>`.
 
 ## Your first use case
 
@@ -60,8 +68,9 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "../pipewright[gcp]"                    # the pipewright command
-gcloud storage cp ../pipewright/examples/churn/data/sample_customers.csv \
+pip install "pipewright-mlops[gcp]==1.0.0"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.0.0/examples/churn/data/sample_customers.csv
+gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
 git init
@@ -73,8 +82,7 @@ git add -A && git commit -m "churn: first release"
 pipewright release --env dev
 
 # Start training by dropping a file under the team's landing prefix:
-gcloud storage cp ../pipewright/examples/churn/data/sample_customers.csv \
-  "gs://<landing bucket>/incoming/demo/customers.csv"
+gcloud storage cp sample_customers.csv "gs://<landing bucket>/incoming/demo/customers.csv"
 ```
 
 The run appears in the Google Cloud console under Agent Platform, Pipelines. When it has finished, make the trained
