@@ -38,3 +38,11 @@ output "tenants" {
   description = "Per tenant: runner service account, dataset and landing prefix."
   value       = local.manifest.tenants
 }
+
+output "github_variables" {
+  description = "With github set: the GitHub environment's variables for the generated workflows."
+  value = var.github == null ? null : {
+    GCP_WIF_PROVIDER           = google_iam_workload_identity_pool_provider.github[0].name
+    PIPEWRIGHT_SERVICE_ACCOUNT = google_service_account.ci[0].email
+  }
+}

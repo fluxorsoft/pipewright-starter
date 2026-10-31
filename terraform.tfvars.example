@@ -25,3 +25,13 @@ policies = {
 
 # Second apply: the launcher image printed by scripts/publish_launcher.sh.
 # launcher_image = "us-central1-docker.pkg.dev/my-pipewright-dev/pw-images/pipewright-launcher@sha256:..."
+
+# Optional (Pipewright 1.2): a CI identity for GitHub Actions in one repository; it becomes an operator.
+# github = { repository = "your-org/your-mlops-repo" }
+
+# Optional: in an environment another one promotes from, the identities that promote (the destination's CI account).
+# promotion_readers = ["serviceAccount:pw-github-ci@my-pipewright-prod.iam.gserviceaccount.com"]
+
+# Defaults: every lifecycle event kept in BigQuery; untagged images deleted after 30 days.
+# event_log            = true
+# image_retention_days = 30

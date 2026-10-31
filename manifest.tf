@@ -34,16 +34,20 @@ locals {
       }
     }
     tenants = {
-      for t, v in local.tenants : t => {
+      for t, v in local.tenants : t => merge({
         runner_service_account = google_service_account.runner[t].email
         bigquery_dataset       = v.dataset
         landing_prefix         = v.landing_prefix
         online_serving         = v.online_serving
-      }
+        }, v.online_features == null ? {} : {
+        features = {
+          online_store = "projects/${var.project_id}/locations/${var.region}/featureOnlineStores/${local.online_store_names[t]}"
+        }
+      })
     }
-    observability = {
+    observability = merge({
       events_topic = local.topic_id["events"]
-    }
+    }, var.event_log ? { evidence_dataset = google_bigquery_dataset.evidence[0].dataset_id } : {})
   }
 }
 

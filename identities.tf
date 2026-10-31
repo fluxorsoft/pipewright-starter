@@ -125,9 +125,11 @@ resource "google_artifact_registry_repository_iam_member" "runner_images" {
 # ---------------------------------------------------------------- operators (people or CI who release) --
 
 resource "google_project_iam_member" "operator" {
-  for_each = { for p in setproduct(var.operators, [
+  for_each = { for p in setproduct(local.operators, [
     "roles/aiplatform.user", "roles/bigquery.jobUser", "roles/cloudscheduler.admin",
     "roles/monitoring.alertPolicyEditor", "roles/monitoring.notificationChannelEditor", "roles/logging.viewer",
+    # Read-only, for `pipewright doctor`: the launcher service, its subscription and topics (FR-80).
+    "roles/run.viewer", "roles/pubsub.viewer",
   ]) : "${p[0]}|${p[1]}" => { member = p[0], role = p[1] } }
 
   project = var.project_id
@@ -136,7 +138,7 @@ resource "google_project_iam_member" "operator" {
 }
 
 resource "google_artifact_registry_repository_iam_member" "operator" {
-  for_each = { for p in setproduct(var.operators, ["images", "pipelines"]) : "${p[0]}|${p[1]}" => { member = p[0], repo = p[1] } }
+  for_each = { for p in setproduct(local.operators, ["images", "pipelines"]) : "${p[0]}|${p[1]}" => { member = p[0], repo = p[1] } }
 
   project    = var.project_id
   location   = var.region
@@ -147,15 +149,24 @@ resource "google_artifact_registry_repository_iam_member" "operator" {
 
 # Release contracts, pointers and sample data.
 resource "google_storage_bucket_iam_member" "operator" {
-  for_each = { for p in setproduct(var.operators, ["artifacts", "landing"]) : "${p[0]}|${p[1]}" => { member = p[0], bucket = p[1] } }
+  for_each = { for p in setproduct(local.operators, ["artifacts", "landing"]) : "${p[0]}|${p[1]}" => { member = p[0], bucket = p[1] } }
 
   bucket = each.value.bucket == "artifacts" ? google_storage_bucket.artifacts.name : google_storage_bucket.landing.name
   role   = "roles/storage.objectAdmin"
   member = each.value.member
 }
 
+# `pipewright doctor` reads each bucket's metadata (FR-80): objectAdmin does not include buckets.get.
+resource "google_storage_bucket_iam_member" "operator_bucket_reader" {
+  for_each = { for p in setproduct(local.operators, ["artifacts", "landing"]) : "${p[0]}|${p[1]}" => { member = p[0], bucket = p[1] } }
+
+  bucket = each.value.bucket == "artifacts" ? google_storage_bucket.artifacts.name : google_storage_bucket.landing.name
+  role   = "roles/storage.legacyBucketReader"
+  member = each.value.member
+}
+
 resource "google_bigquery_dataset_iam_member" "operator" {
-  for_each = { for p in setproduct(var.operators, keys(local.tenants)) : "${p[0]}|${p[1]}" => { member = p[0], tenant = p[1] } }
+  for_each = { for p in setproduct(local.operators, keys(local.tenants)) : "${p[0]}|${p[1]}" => { member = p[0], tenant = p[1] } }
 
   project    = var.project_id
   dataset_id = google_bigquery_dataset.tenant[each.value.tenant].dataset_id
@@ -165,7 +176,7 @@ resource "google_bigquery_dataset_iam_member" "operator" {
 
 # Scheduler jobs call the launcher as the launcher identity; verification runs use the tenant's runner.
 resource "google_service_account_iam_member" "operator_launcher" {
-  for_each = toset(var.operators)
+  for_each = toset(local.operators)
 
   service_account_id = google_service_account.launcher.name
   role               = "roles/iam.serviceAccountUser"
@@ -173,15 +184,26 @@ resource "google_service_account_iam_member" "operator_launcher" {
 }
 
 resource "google_service_account_iam_member" "operator_runner" {
-  for_each = { for p in setproduct(var.operators, keys(local.tenants)) : "${p[0]}|${p[1]}" => { member = p[0], tenant = p[1] } }
+  for_each = { for p in setproduct(local.operators, keys(local.tenants)) : "${p[0]}|${p[1]}" => { member = p[0], tenant = p[1] } }
 
   service_account_id = google_service_account.runner[each.value.tenant].name
   role               = "roles/iam.serviceAccountUser"
   member             = each.value.member
 }
 
+# Releases and promotions publish release.live and release.promoted on the events topic (FR-80): without
+# this, a CI identity's releases are missing from the event log.
+resource "google_pubsub_topic_iam_member" "operator_events" {
+  for_each = toset(local.operators)
+
+  project = var.project_id
+  topic   = google_pubsub_topic.this["events"].name
+  role    = "roles/pubsub.publisher"
+  member  = each.value
+}
+
 resource "google_pubsub_topic_iam_member" "operator_run_requests" {
-  for_each = toset(var.operators)
+  for_each = toset(local.operators)
 
   project = var.project_id
   topic   = google_pubsub_topic.this["run-requests"].name

@@ -19,6 +19,10 @@ top of the same building blocks.
 | Messaging | Pub/Sub topics `pw-landing`, `pw-run-requests`, `pw-events`, `pw-dead-letters`, and one per approver group |
 | Launcher | Cloud Run service `pw-launcher` (IAM authenticated), its push subscriptions, Cloud Scheduler jobs for retrain decisions |
 | Manifest | `gs://<project>-pw-artifacts/pipewright/environment.json`: what app teams point their environment file at |
+| Event log | BigQuery dataset `pw_evidence`, table `events`: every lifecycle event, kept by a Pub/Sub subscription (`event_log = false` turns it off) |
+| Image cleanup | Untagged images older than 30 days are deleted (`image_retention_days`); every image Pipewright pushes is tagged |
+| Optional: CI | `github = { repository = "org/repo" }`: a Workload Identity pool and provider for that repository, a CI service account among the operators (`ci.tf`) |
+| Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
 
 ## Before you start
 
@@ -48,14 +52,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.0.0 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.1.0 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.0.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.1.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -68,8 +72,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.0.0"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.0.0/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.1.0"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.1.0/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
@@ -96,6 +100,43 @@ pipewright run --env dev --usecase churn --pipeline inference \
 
 The [Pipewright README](https://github.com/fluxorsoft/pipewright) and its `docs/ONBOARDING.md` cover the rest:
 schedules, alerts, retrain decisions, serving and CI.
+
+## CI with GitHub Actions
+
+Set `github = { repository = "your-org/your-repo" }` and apply: the repository's workflows can then act as
+`pw-github-ci@<project>`, which is an operator, through Workload Identity Federation (no keys). Put the
+`github_variables` output in the repository's GitHub environment for this environment, and generate the workflows
+with `pipewright ci init --environments dev,prod`. In an environment that production promotes from, list
+production's CI account in `promotion_readers`: `pipewright promote` reads this environment's images, release
+contracts and models.
+
+## Online features
+
+A team whose model looks its features up at serving time (`model.serving.features: online`) needs an online store.
+Give the team `online_features` in `terraform.tfvars`:
+
+```hcl
+tenants = {
+  retail = {
+    online_serving = true
+    online_features = {
+      views = { customer = { feature_groups = { customer_activity = ["orders_90d", "spend_90d"] } } }
+    }
+  }
+}
+```
+
+The store is Bigtable: it costs money for as long as it exists, so remove `online_features` when you stop using
+it. The feature groups must exist before the view does (the data team registers them over its BigQuery tables). A
+view's first sync starts when the view is created and can fail for a minute while the Agent Platform service
+agent's new read access on the team's dataset takes effect (`bigtable.tables.mutateRows` denied); sync it again,
+and `pipewright doctor` warns of a view whose sync has not finished.
+
+## Ray steps
+
+Ray stays out of the starter. A team that wants Ray steps on a starter environment grants, by hand: a custom role
+with `aiplatform.persistentResources.create`, `delete`, `get` and `list` to the launcher's service account, and to
+each team's runner `roles/iam.serviceAccountUser` and `roles/iam.serviceAccountOpenIdTokenCreator` on itself.
 
 ## Notes
 

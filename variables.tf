@@ -40,6 +40,13 @@ variable "tenants" {
     landing_prefix = optional(string)
     online_serving = optional(bool, false)
     members        = optional(list(string), [])
+    online_features = optional(object({
+      nodes = optional(object({ min = number, max = number }), { min = 1, max = 1 })
+      views = map(object({
+        feature_groups = map(list(string))
+        sync           = optional(string, "0 6 * * *")
+      }))
+    }))
   }))
   default = { demo = {} }
 
@@ -125,4 +132,46 @@ variable "force_destroy" {
   description = "Let terraform destroy delete buckets, datasets and the launcher with their contents (test environments)."
   type        = bool
   default     = true
+}
+
+variable "github" {
+  description = <<-EOT
+    A CI identity for GitHub Actions in one repository (ci.tf): { repository = "org/repo" }. It becomes an operator;
+    the outputs github_variables give the GitHub environment's variables. null: no CI identity.
+  EOT
+  type = object({
+    repository = string
+  })
+  default = null
+
+  validation {
+    condition     = var.github == null || can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github.repository))
+    error_message = "github.repository: org/repo."
+  }
+}
+
+variable "promotion_readers" {
+  description = <<-EOT
+    Identities that promote from this environment into another (the destination's CI account, usually
+    serviceAccount:pw-github-ci@<prod project>.iam.gserviceaccount.com). They read the images, release contracts,
+    artifacts and models `pipewright promote` copies.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "event_log" {
+  description = "Keep every lifecycle event in BigQuery (evidence.tf): the record `pipewright lineage` reads decisions from."
+  type        = bool
+  default     = true
+}
+
+variable "image_retention_days" {
+  description = <<-EOT
+    Untagged images older than this are deleted by the images repository's cleanup policy. Pipewright tags every
+    image it pushes, so releases keep theirs; `pipewright images prune` removes old releases' images safely.
+    null: no cleanup policy.
+  EOT
+  type        = number
+  default     = 30
 }
