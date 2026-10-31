@@ -52,6 +52,20 @@ resource "google_storage_bucket_iam_member" "launcher_cases" {
   }
 }
 
+# Pipewright 1.2 (FR-67): the launcher marks each failed run it has reported (runs/failed/<job>), so run.failed is
+# recorded once.
+resource "google_storage_bucket_iam_member" "launcher_runs" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.launcher.email}"
+
+  condition {
+    title       = "pipewright-runs"
+    description = "Failed-run markers only"
+    expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/runs/\")"
+  }
+}
+
 resource "google_artifact_registry_repository_iam_member" "launcher" {
   for_each = { images = google_artifact_registry_repository.images.name, pipelines = google_artifact_registry_repository.pipelines.name }
 
