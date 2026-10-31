@@ -151,6 +151,26 @@ resource "google_project_iam_member" "operator" {
   member  = each.value.member
 }
 
+# `pipewright alerts sync` makes each event alert a log-based alert policy, and Cloud Logging checks its own
+# permission for those (logging.notificationRules.*), which no monitoring role carries. Only that, so CI can add an
+# alert for a new event without the much wider roles/logging.configWriter.
+resource "google_project_iam_custom_role" "log_alerts" {
+  project     = var.project_id
+  role_id     = replace("${local.p}_log_alert_rules", "-", "_")
+  title       = "Pipewright log-based alert rules"
+  description = "Create, change and delete the log-based alert policies of pipewright alerts sync."
+  permissions = ["logging.notificationRules.create", "logging.notificationRules.delete", "logging.notificationRules.get",
+  "logging.notificationRules.list", "logging.notificationRules.update"]
+}
+
+resource "google_project_iam_member" "operator_log_alerts" {
+  for_each = toset(local.operators)
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.log_alerts.id
+  member  = each.value
+}
+
 resource "google_artifact_registry_repository_iam_member" "operator" {
   for_each = { for p in setproduct(local.operators, ["images", "pipelines"]) : "${p[0]}|${p[1]}" => { member = p[0], repo = p[1] } }
 
