@@ -1,5 +1,5 @@
 /**
- * A CI identity for GitHub Actions (Pipewright 1.2, FR-80), optional: github = { repository = "org/repo" }.
+ * A CI identity for GitHub Actions (Pipewright 1.2.0, FR-80), optional: github = { repository = "org/repo" }.
  *
  * A Workload Identity pool and a GitHub provider that accepts tokens from that one repository only (no keys), a CI
  * service account the repository's workflows may act as, and that account among the operators: what CI may do is

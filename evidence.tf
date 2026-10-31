@@ -1,5 +1,5 @@
 /**
- * The event log (Pipewright 1.2, FR-84): every Pipewright lifecycle event, as published on the events topic, kept in
+ * The event log (Pipewright 1.2.0, FR-84): every Pipewright lifecycle event, as published on the events topic, kept in
  * BigQuery. Without a subscription Pub/Sub discards what is published, so promotions, approvals, deployments and
  * retrain decisions would leave no record. Ported from Pipewright Enterprise's observability module, without CMEK.
  * Off with event_log = false. The manifest names the dataset (observability.evidence_dataset), where

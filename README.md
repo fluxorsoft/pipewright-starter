@@ -14,7 +14,7 @@ top of the same building blocks.
 | APIs | Agent Platform (Vertex AI), Artifact Registry, BigQuery, Cloud Run, Cloud Scheduler, IAM, Logging, Monitoring, Pub/Sub, Storage |
 | Storage | `<project>-pw-artifacts` (manifest, release contracts, pipeline roots, retrain cases), `<project>-pw-landing` (files that start runs; deleted after 30 days) |
 | Registries | `pw-images` (Docker: component images, the launcher), `pw-pipelines` (KFP: pipeline templates) |
-| Identities | `pw-launcher` service account; a runner service account per team (`pw-<team>-run`); IAM so each runner reads only its team's landing and samples prefixes |
+| Identities | `pw-launcher` service account; a runner service account per team (`pw-<team>-run`); IAM so each runner reads only its team's landing and samples prefixes; for operators, a custom role that may manage log-based alert rules only (`alerts sync`, from CI too) |
 | Team data | A BigQuery dataset per team (`pw_<team>`) |
 | Messaging | Pub/Sub topics `pw-landing`, `pw-run-requests`, `pw-events`, `pw-dead-letters`, and one per approver group |
 | Launcher | Cloud Run service `pw-launcher` (IAM authenticated), its push subscriptions, Cloud Scheduler jobs for retrain decisions |
@@ -52,14 +52,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.1.0 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.2.0 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.1.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.2.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -72,8 +72,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.1.0"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.1.0/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.2.0"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.2.0/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 

@@ -52,7 +52,7 @@ resource "google_storage_bucket_iam_member" "launcher_cases" {
   }
 }
 
-# Pipewright 1.2 (FR-67): the launcher marks each failed run it has reported (runs/failed/<job>), so run.failed is
+# Pipewright 1.2.0 (FR-67): the launcher marks each failed run it has reported (runs/failed/<job>), so run.failed is
 # recorded once.
 resource "google_storage_bucket_iam_member" "launcher_runs" {
   bucket = google_storage_bucket.artifacts.name
