@@ -10,10 +10,10 @@ locals {
   agent_members = { for t in keys(local.agent_tenants) : t => "serviceAccount:${google_service_account.agent[t].email}" }
   # The project-level roles an agent needs to look, never to change or read data.
   agent_project_roles = [
-    "roles/bigquery.jobUser",        # dry runs and job metadata (no data access on its own)
-    "roles/aiplatform.viewer",       # models, pipeline runs, feature group and view definitions
-    "roles/cloudscheduler.viewer",   # the plan of a use case's schedules
-    "roles/monitoring.viewer",       # the plan of a use case's alert policies
+    "roles/bigquery.jobUser",      # dry runs and job metadata (no data access on its own)
+    "roles/aiplatform.viewer",     # models, pipeline runs, feature group and view definitions
+    "roles/cloudscheduler.viewer", # the plan of a use case's schedules
+    "roles/monitoring.viewer",     # the plan of a use case's alert policies
   ]
   agent_project_grants = {
     for pair in setproduct(keys(local.agent_tenants), local.agent_project_roles) : "${pair[0]}|${pair[1]}" => {
