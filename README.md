@@ -23,7 +23,7 @@ top of the same building blocks.
 | Image cleanup | Untagged images older than 30 days are deleted (`image_retention_days`); every image Pipewright pushes is tagged |
 | Optional: CI | `github = { repository = "org/repo" }`: a Workload Identity pool and provider for that repository, a CI service account among the operators (`ci.tf`) |
 | Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
-| Optional: AI build assistance | `tenants.<team>.agent_identity = true`: an agent service account per team with metadata-only roles, impersonated by the team's members, named in the manifest for `pipewright mcp` (`ai.tf`, Pipewright 1.3.0); `tenants.<team>.feature_datasets`: the feature tables' datasets the team may read |
+| Optional: AI build assistance | `tenants.<team>.agent_identity = true`: an agent service account per team with metadata-only roles, impersonated by the team's members, named in the manifest for `pipewright mcp` (`ai.tf`, Pipewright 1.3.0); `tenants.<team>.feature_datasets`: the feature tables' datasets the team may read (read-only for the runner, schemas only for the agent) |
 
 ## Before you start
 

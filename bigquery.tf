@@ -29,3 +29,14 @@ resource "google_bigquery_dataset_iam_member" "members" {
   role       = "roles/bigquery.dataEditor"
   member     = each.value.member
 }
+
+# The feature tables a team's pipelines read (tenants.<t>.feature_datasets, data.features_from): read-only, for the
+# runner. Found live in the 1.3.0 test: without it, ingest fails with 403 on the feature table.
+resource "google_bigquery_dataset_iam_member" "runner_features" {
+  for_each = merge([for t, v in local.tenants : { for d in v.feature_datasets : "${t}|${d}" => { tenant = t, dataset = d } }]...)
+
+  project    = split(".", each.value.dataset)[0]
+  dataset_id = split(".", each.value.dataset)[1]
+  role       = "roles/bigquery.dataViewer"
+  member     = local.runner_members[each.value.tenant]
+}
