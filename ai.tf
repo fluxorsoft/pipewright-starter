@@ -92,3 +92,46 @@ resource "google_service_account_iam_member" "agent_impersonation" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = each.value.member
 }
+
+# What `doctor` checks, read as configuration: that the platform's buckets, registries, launcher, topics and service
+# accounts exist and are set up. No object listing, no image pulls, no data.
+resource "google_project_iam_custom_role" "agent_platform_metadata" {
+  count = length(local.agent_tenants) > 0 ? 1 : 0
+
+  project     = var.project_id
+  role_id     = replace("${local.p}_agent_platform_metadata", "-", "_")
+  title       = "Pipewright agent: platform metadata"
+  description = "Read the configuration of the platform's resources, for pipewright doctor run by a coding agent."
+  permissions = [
+    "storage.buckets.get",
+    "artifactregistry.repositories.get",
+    "iam.serviceAccounts.get",
+    "run.services.get",
+    "pubsub.topics.get",
+    "pubsub.subscriptions.get",
+  ]
+}
+
+resource "google_project_iam_member" "agent_platform_metadata" {
+  for_each = local.agent_tenants
+
+  project = var.project_id
+  role    = google_project_iam_custom_role.agent_platform_metadata[0].id
+  member  = local.agent_members[each.key]
+}
+
+# Optional: Data Access audit logs (ADMIN_READ, DATA_READ) for the services agents read, so every metadata read an
+# agent makes is in Cloud Audit Logs with its user agent (pipewright-mcp/<version> agent=<name>) and the person it
+# acted for. Refused attempts and BigQuery queries are logged without this. Data Access logs are billed by volume.
+resource "google_project_iam_audit_config" "agent" {
+  for_each = var.agent_audit_logs ? toset(["bigquery.googleapis.com", "aiplatform.googleapis.com", "storage.googleapis.com"]) : toset([])
+
+  project = var.project_id
+  service = each.value
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+}

@@ -183,3 +183,9 @@ variable "image_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "agent_audit_logs" {
+  description = "AI build assistance: turn on Data Access audit logs for BigQuery, Agent Platform and Cloud Storage, so every metadata read by an agent identity is recorded (billed by volume)."
+  type        = bool
+  default     = false
+}
