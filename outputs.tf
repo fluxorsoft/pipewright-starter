@@ -46,3 +46,8 @@ output "github_variables" {
     PIPEWRIGHT_SERVICE_ACCOUNT = google_service_account.ci[0].email
   }
 }
+
+output "agent_service_accounts" {
+  description = "AI build assistance: each team's agent identity (agent_identity = true), for `pipewright mcp`."
+  value       = { for t, sa in google_service_account.agent : t => sa.email }
+}

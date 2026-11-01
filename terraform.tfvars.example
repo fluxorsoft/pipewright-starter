@@ -7,6 +7,8 @@ environment = "dev"
 tenants = {
   demo = {
     members = ["user:you@example.com"]   # may start runs and read retrain cases
+    # agent_identity   = true                    # a metadata-only identity for coding agents (pipewright mcp)
+    # feature_datasets = ["my-project.features"] # feature tables the team may read (data.features_from)
   }
 }
 

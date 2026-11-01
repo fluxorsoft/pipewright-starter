@@ -39,10 +39,13 @@ locals {
         bigquery_dataset       = v.dataset
         landing_prefix         = v.landing_prefix
         online_serving         = v.online_serving
-        }, v.online_features == null ? {} : {
-        features = {
-          online_store = "projects/${var.project_id}/locations/${var.region}/featureOnlineStores/${local.online_store_names[t]}"
-        }
+        }, v.agent_identity ? { agent_service_account = google_service_account.agent[t].email } : {},
+        v.online_features == null && length(v.feature_datasets) == 0 ? {} : {
+          features = merge(
+            length(v.feature_datasets) == 0 ? {} : { datasets = v.feature_datasets },
+            v.online_features == null ? {} : {
+              online_store = "projects/${var.project_id}/locations/${var.region}/featureOnlineStores/${local.online_store_names[t]}"
+          })
       })
     }
     observability = merge({

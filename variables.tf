@@ -40,6 +40,10 @@ variable "tenants" {
     landing_prefix = optional(string)
     online_serving = optional(bool, false)
     members        = optional(list(string), [])
+    # AI build assistance (Pipewright 1.3.0): an agent service account with metadata-only roles, impersonated by
+    # the team's members (ai.tf); feature_datasets: project.dataset of the feature tables the team may read.
+    agent_identity   = optional(bool, false)
+    feature_datasets = optional(list(string), [])
     online_features = optional(object({
       nodes = optional(object({ min = number, max = number }), { min = 1, max = 1 })
       views = map(object({
@@ -53,6 +57,10 @@ variable "tenants" {
   validation {
     condition     = alltrue([for t in keys(var.tenants) : can(regex("^[a-z][a-z0-9-]{0,14}$", t))])
     error_message = "Tenant names: lowercase letters, digits and hyphens, at most 15 characters."
+  }
+  validation {
+    condition     = alltrue(flatten([for v in values(var.tenants) : [for d in v.feature_datasets : can(regex("^[a-z][a-z0-9-]{4,61}[a-z0-9][.][A-Za-z0-9_]+$", d))]]))
+    error_message = "feature_datasets: project.dataset, e.g. my-project.features."
   }
   validation {
     condition     = alltrue([for v in values(var.tenants) : v.landing_prefix == null || startswith(coalesce(v.landing_prefix, "x"), "incoming/")])
