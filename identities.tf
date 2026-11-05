@@ -254,3 +254,14 @@ resource "google_pubsub_topic_iam_member" "operator_run_requests" {
   role    = "roles/pubsub.publisher"
   member  = each.value
 }
+
+# With isolate_tenant_artifacts, a runner may write only under its own pipeline root, so the folders above it must
+# exist before the first run: the pipeline's Cloud Storage mount creates a folder object for every level it opens,
+# and creating "pipeline-root/" would be denied (found in the phase 6 live test). Terraform creates them once.
+resource "google_storage_bucket_object" "pipeline_root" {
+  for_each = var.isolate_tenant_artifacts ? merge({ "" = "" }, { for t in keys(local.tenants) : t => t }) : {}
+
+  bucket  = google_storage_bucket.artifacts.name
+  name    = each.key == "" ? "pipeline-root/" : "pipeline-root/${each.key}/"
+  content = each.key == "" ? "Pipeline roots, one per team. Managed by Terraform.\n" : "Pipeline root of team ${each.key}: runs write under ${each.key}/<use case>/. Managed by Terraform.\n"
+}
