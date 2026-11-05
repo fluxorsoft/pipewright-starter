@@ -147,10 +147,12 @@ and `promote` refuse a version that is not the one approved (a changed file, a m
 approved here). Three settings, all optional:
 
 - `policies.integrity.mode = "warn"` says what it found and goes on, for an environment that needs it.
-- `policies.integrity.lock = { days = 30 }` locks the approved model files with Cloud Storage object retention. It
-  turns on object retention for the artifacts bucket: read the plan before applying, and if it would replace the
-  bucket, turn retention on with `gcloud storage buckets update gs://<artifacts bucket> --enable-per-object-retention`
-  first. `mode = "locked"` cannot be shortened or removed by anyone, including owners: use it for production only.
+- `policies.integrity.lock = { days = 30 }` keeps the approved model files from being overwritten or deleted. Set
+  it before the first apply and the artifacts bucket is created with object retention: each approved file is retained
+  for `days`. Cloud Storage cannot add retention to an existing bucket (and Terraform leaves the bucket as it is), so
+  on an environment built earlier the lock is a temporary hold on each approved file instead. `mode = "locked"`
+  (retention nobody can shorten or remove, including owners) needs a bucket created with retention: use it for
+  production only.
 - `policies.integrity.inference = "warn"` (or `"refuse"`) checks, before a scoring run, that its default version was
   approved; the launcher then reads the event log.
 

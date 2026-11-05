@@ -13,8 +13,14 @@ resource "google_storage_bucket" "artifacts" {
   }
 
   # Pipewright phase 6 (FR-97): approvals lock the approved model files with object retention; only when a lock is
-  # configured (policies.integrity.lock.days).
+  # configured (policies.integrity.lock.days). Cloud Storage sets it only when a bucket is created, and Terraform
+  # would replace the bucket (deleting every model) to change it, so a change after creation is ignored: an existing
+  # environment's approvals lock with temporary holds instead (see the README).
   enable_object_retention = local.integrity_lock
+
+  lifecycle {
+    ignore_changes = [enable_object_retention]
+  }
 
   depends_on = [google_project_service.this]
 }
