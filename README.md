@@ -139,6 +139,24 @@ Ray stays out of the starter. A team that wants Ray steps on a starter environme
 with `aiplatform.persistentResources.create`, `delete`, `get` and `list` to the launcher's service account, and to
 each team's runner `roles/iam.serviceAccountUser` and `roles/iam.serviceAccountOpenIdTokenCreator` on itself.
 
+## What runs is what was approved
+
+From the Pipewright release that ships phase 6, an approval records what it approved: the evaluation record, every
+model file and the serving image, by fingerprint, and the rules of the release that trained the version. `deploy-model`
+and `promote` refuse a version that is not the one approved (a changed file, a moved image tag, a default nobody
+approved here). Three settings, all optional:
+
+- `policies.integrity.mode = "warn"` says what it found and goes on, for an environment that needs it.
+- `policies.integrity.lock = { days = 30 }` locks the approved model files with Cloud Storage object retention. It
+  turns on object retention for the artifacts bucket: read the plan before applying, and if it would replace the
+  bucket, turn retention on with `gcloud storage buckets update gs://<artifacts bucket> --enable-per-object-retention`
+  first. `mode = "locked"` cannot be shortened or removed by anyone, including owners: use it for production only.
+- `policies.integrity.inference = "warn"` (or `"refuse"`) checks, before a scoring run, that its default version was
+  approved; the launcher then reads the event log.
+
+`isolate_tenant_artifacts = true` lets each team's runner write only under its own pipeline root, so one team's runs
+cannot overwrite another team's models or evaluation records.
+
 ## Notes
 
 - **First run in a brand-new project:** Google creates Agent Platform's service agent when the first pipeline runs.

@@ -23,7 +23,15 @@ approver_groups = {
 policies = {
   promote_model = "manual"
   deploy_model  = "manual"
+  # Pipewright phase 6: what runs is what was approved. Deploy and promote refuse a version that is not the one
+  # approved unless mode = "warn". A lock keeps the approved model files from being overwritten (it turns on object
+  # retention for the artifacts bucket: check the plan). inference: "warn" or "refuse" a scoring run whose default
+  # version has no approval.
+  # integrity = { mode = "refuse", lock = { days = 30, mode = "unlocked" }, inference = "warn" }
 }
+
+# Pipewright phase 6: each team's runner writes only under its own pipeline root (recommended for shared projects).
+# isolate_tenant_artifacts = true
 
 # Second apply: the launcher image printed by scripts/publish_launcher.sh.
 # launcher_image = "us-central1-docker.pkg.dev/my-pipewright-dev/pw-images/pipewright-launcher@sha256:..."

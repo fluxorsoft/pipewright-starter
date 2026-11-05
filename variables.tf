@@ -120,8 +120,30 @@ variable "policies" {
       required_approvers = optional(list(string))
       max_snooze_days    = optional(number)
     }))
+    # Pipewright phase 6: what runs is what was approved. mode refuse (Pipewright's default) or warn; lock the
+    # approved model files for lock.days (turns on object retention for the artifacts bucket); inference: off, warn
+    # or refuse a scoring run whose default version has no approval.
+    integrity = optional(object({
+      mode = optional(string)
+      lock = optional(object({
+        days = optional(number, 0)
+        mode = optional(string, "unlocked")
+      }))
+      inference = optional(string)
+    }))
   })
   default = {}
+
+  validation {
+    condition     = try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true)
+    error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked."
+  }
+}
+
+variable "isolate_tenant_artifacts" {
+  description = "Pipewright phase 6 (FR-97): each team's runner may write only under its own pipeline root (pipeline-root/<tenant>/) in the artifacts bucket, so one team's runs cannot overwrite another team's models or evaluation records. Off keeps the starter's shared grant."
+  type        = bool
+  default     = false
 }
 
 variable "labels" {

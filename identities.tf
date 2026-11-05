@@ -105,6 +105,16 @@ resource "google_storage_bucket_iam_member" "runner_artifacts" {
   bucket = google_storage_bucket.artifacts.name
   role   = "roles/storage.objectAdmin"
   member = local.runner_members[each.key]
+
+  # Pipewright phase 6 (FR-97), with isolate_tenant_artifacts: only the team's own pipeline root.
+  dynamic "condition" {
+    for_each = var.isolate_tenant_artifacts ? [each.key] : []
+    content {
+      title       = "tenant-pipeline-root"
+      description = "Only ${condition.value}'s pipeline root: pipeline-root/${condition.value}/"
+      expression  = "resource.type == \"storage.googleapis.com/Bucket\" || resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipeline-root/${condition.value}/\")"
+    }
+  }
 }
 
 # Each runner reads only its own landing prefix and samples/<tenant>/ (scoring batches, retrain sources).

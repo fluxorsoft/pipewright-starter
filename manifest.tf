@@ -25,6 +25,12 @@ locals {
       { deploy_model = var.policies.deploy_model, promote_model = var.policies.promote_model },
       var.policies.retraining == null ? {} : {
         retraining = { for k, v in var.policies.retraining : k => v if v != null }
+      },
+      var.policies.integrity == null ? {} : {
+        integrity = merge(
+          var.policies.integrity.mode == null ? {} : { mode = var.policies.integrity.mode },
+          var.policies.integrity.lock == null ? {} : { lock = var.policies.integrity.lock },
+        var.policies.integrity.inference == null ? {} : { inference = var.policies.integrity.inference })
     })
     approver_groups = {
       for g, v in var.approver_groups : g => {

@@ -12,7 +12,15 @@ resource "google_storage_bucket" "artifacts" {
     enabled = true # release contracts are write-once; versioning keeps the pointers' history recoverable
   }
 
+  # Pipewright phase 6 (FR-97): approvals lock the approved model files with object retention; only when a lock is
+  # configured (policies.integrity.lock.days).
+  enable_object_retention = local.integrity_lock
+
   depends_on = [google_project_service.this]
+}
+
+locals {
+  integrity_lock = try(var.policies.integrity.lock.days, 0) > 0
 }
 
 # Landing: files dropped under a tenant's landing prefix start that tenant's runs.
