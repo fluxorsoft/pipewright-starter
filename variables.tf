@@ -44,6 +44,10 @@ variable "tenants" {
     # the team's members (ai.tf); feature_datasets: project.dataset of the feature tables the team may read.
     agent_identity   = optional(bool, false)
     feature_datasets = optional(list(string), [])
+    # Pipewright phase 6 (FR-48): in a test environment, the production project whose feature and label tables a
+    # closed retrain loop's training may read (retraining.loop.data: production). The read grant in that project and
+    # any perimeter rules are yours to add (Pipewright Enterprise's blueprint makes them).
+    loop_production_project = optional(string)
     online_features = optional(object({
       nodes = optional(object({ min = number, max = number }), { min = 1, max = 1 })
       views = map(object({

@@ -46,6 +46,7 @@ locals {
         landing_prefix         = v.landing_prefix
         online_serving         = v.online_serving
         }, v.agent_identity ? { agent_service_account = google_service_account.agent[t].email } : {},
+        v.loop_production_project == null ? {} : { loop_production_project = v.loop_production_project },
         v.online_features == null && length(v.feature_datasets) == 0 ? {} : {
           features = merge(
             length(v.feature_datasets) == 0 ? {} : { datasets = v.feature_datasets },
