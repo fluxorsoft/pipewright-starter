@@ -145,7 +145,7 @@ variable "policies" {
 }
 
 variable "isolate_tenant_artifacts" {
-  description = "Pipewright phase 6 (FR-97): each team's runner may write only under its own pipeline root (pipeline-root/<tenant>/) in the artifacts bucket, so one team's runs cannot overwrite another team's models or evaluation records. Off keeps the starter's shared grant."
+  description = "Pipewright 1.4.0: each team's runner may write only under its own pipeline root (pipeline-root/<tenant>/) in the artifacts bucket, so one team's runs cannot overwrite another team's models or evaluation records. Off keeps the starter's shared grant."
   type        = bool
   default     = false
 }
