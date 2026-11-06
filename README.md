@@ -53,14 +53,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.3.0 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.0 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.3.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.4.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -73,8 +73,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.3.0"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.3.0/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.4.0"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.0/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
@@ -141,13 +141,13 @@ each team's runner `roles/iam.serviceAccountUser` and `roles/iam.serviceAccountO
 
 ## What runs is what was approved
 
-From the Pipewright release that ships phase 6, an approval records what it approved: the evaluation record, every
+From Pipewright 1.4.0, an approval records what it approved: the evaluation record, every
 model file and the serving image, by fingerprint, and the rules of the release that trained the version. `deploy-model`
 and `promote` refuse a version that is not the one approved (a changed file, a moved image tag, a default nobody
 approved here). Three settings, all optional:
 
 - `policies.integrity.mode = "warn"` says what it found and goes on, for an environment that needs it.
-- `policies.integrity.lock = { days = 30 }` keeps the approved model files from being overwritten or deleted. Set
+- `policies.integrity.lock = { days = 30 }` keeps the approved model files and release contracts from being destroyed (and a changed live copy is refused at deploy). Set
   it before the first apply and the artifacts bucket is created with object retention: each approved file is retained
   for `days`. Cloud Storage cannot add retention to an existing bucket (and Terraform leaves the bucket as it is), so
   on an environment built earlier the lock is a temporary hold on each approved file instead. `mode = "locked"`
@@ -155,6 +155,10 @@ approved here). Three settings, all optional:
   production only.
 - `policies.integrity.inference = "warn"` (or `"refuse"`) checks, before a scoring run, that its default version was
   approved; the launcher then reads the event log.
+
+`deploy-model` and `promote` also cross-check each approval with Cloud Audit Logs: whoever deploys or promotes
+needs `roles/logging.viewer` for it (without it the check is a note). In a test environment that a closed retrain
+loop trains in, `tenants.<team>.loop_production_project` names the production project whose tables it may read.
 
 `isolate_tenant_artifacts = true` lets each team's runner write only under its own pipeline root, so one team's runs
 cannot overwrite another team's models or evaluation records.
