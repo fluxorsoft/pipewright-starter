@@ -54,3 +54,23 @@ resource "google_bigquery_dataset_iam_member" "launcher_snapshots" {
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.launcher.email}"
 }
+
+# A snapshot with an expiration also needs bigquery.tables.deleteSnapshot (found live: dataEditor lacks it, and the
+# broad dataOwner is not granted): a role with only that, on the tenant datasets.
+resource "google_project_iam_custom_role" "features_snapshots" {
+  count       = local.features_snap ? 1 : 0
+  project     = var.project_id
+  role_id     = replace("${local.p}_feature_snapshots", "-", "_")
+  title       = "Pipewright: expire feature snapshots"
+  description = "Pipewright 1.4.1 (FR-103): snapshots of the tables a scoring run read, created with an expiration."
+  permissions = ["bigquery.tables.deleteSnapshot"]
+}
+
+resource "google_bigquery_dataset_iam_member" "launcher_snapshot_expiry" {
+  for_each = local.features_snap ? toset(keys(local.tenants)) : toset([])
+
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.tenant[each.key].dataset_id
+  role       = google_project_iam_custom_role.features_snapshots[0].id
+  member     = "serviceAccount:${google_service_account.launcher.email}"
+}
