@@ -1,0 +1,58 @@
+# Online feature stores (Pipewright 1.4.2, FR-104). Copy to online_store.yaml to turn them on; without the file,
+# nothing in online_stores.tf is created. The Bigtable online stores of Pipewright 1.1 stay in terraform.tfvars
+# (tenants.<t>.online_features). Costs are Google's list prices for europe-west2 (2026-11-07), before discounts;
+# `pipewright doctor` shows them for each use case.
+
+# The store types use cases in this environment may choose (model.serving.online_store.type).
+# Default: bigtable, plus cloudsql and bigquery when they are set up below.
+types: [bigtable, cloudsql, bigquery]
+
+# Cloud SQL for PostgreSQL: one instance for the environment, a schema per team. About 3 ms a lookup direct,
+# 12 ms through the lookup service (spike (d)); one vCPU served about 800 lookups a second.
+cloudsql:
+  enabled: true
+  # enterprise | enterprise_plus. Always written out: PostgreSQL 16 defaults to Enterprise Plus, which costs more.
+  edition: enterprise
+  # Enterprise: db-f1-micro (about $11 a month, no SLA, tests only), db-g1-small (about $33), db-custom-<vCPU>-<MB>
+  # (vCPU 1 or even 2..96; 0.9 to 6.5 GB per vCPU, a multiple of 256 MB, at least 3840 MB), db-custom-N4-<vCPU>-<MB>.
+  # Enterprise Plus: db-perf-optimized-N-<2..128>, db-c4a-highmem-<2..72>, db-perf-optimized-C4-<2,4,8>.
+  # db-custom-1-3840 (the default): about $61 a month zonal, $122 regional. db-custom-2-7680: about $120 / $241.
+  tier: db-custom-1-3840
+  postgres_version: POSTGRES_16
+  availability: zonal          # regional: high availability, about twice the compute
+  disk:
+    type: ssd                  # ssd; hdd (Enterprise only); hyperdisk (N4, C4, C4A only)
+    size_gb: 10                # can only grow
+    autoresize: true
+    autoresize_limit_gb: 0     # 0: no limit
+  data_cache: false            # Enterprise Plus only
+  deletion_protection: true
+  database: features
+  # kms_key: projects/<p>/locations/<region>/keyRings/<ring>/cryptoKeys/<key>   # CMEK (Enterprise requires it)
+  # The tenants whose use cases use it: each gets a sync job (its runner) and a lookup identity.
+  tenants: []
+
+# BigQuery with BI Engine: about 200 ms a lookup through the BigQuery API, no copy of the data. The reservation is
+# one per project and region, about $38 a month per GiB. A lookup BI Engine does not serve is billed as a full table
+# read: after each sync, for minutes (spike (d): up to 10 for 1M rows); Pipewright alerts on billed lookups.
+bigquery:
+  bi_engine_gib: 0             # 0: no reservation (and no bigquery type)
+  preferred_tables: []         # project.dataset.table; empty: BI Engine may accelerate any table in the project
+
+# Pipewright's lookup service between Agent Platform endpoints and Cloud SQL, per use case. The ML team sizes it in
+# its use case (model.serving.online_store.lookup); these are the environment's defaults and limits.
+lookup:
+  defaults:
+    min_instances: 0           # warm instances: about $14 a month each (1 vCPU, 512Mi, idle); best effort
+    cpu_boost: true            # shorter cold starts, about $0.0005 a start
+    billing: request           # instance: CPU always allocated, about $60 a month an instance
+  limits:
+    max_cpu: 2
+    max_memory: 4Gi
+    max_instances: 10
+    max_min_instances: 2
+    min_min_instances: 0       # the floor: 1 in production keeps a warm instance for every lookup service
+
+# The small network Cloud SQL's private IP needs (Private Services Access).
+network:
+  subnet: 10.60.0.0/24

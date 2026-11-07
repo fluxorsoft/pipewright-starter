@@ -54,12 +54,13 @@ locals {
         online_serving         = v.online_serving
         }, v.agent_identity ? { agent_service_account = google_service_account.agent[t].email } : {},
         v.loop_production_project == null ? {} : { loop_production_project = v.loop_production_project },
-        v.online_features == null && length(v.feature_datasets) == 0 ? {} : {
+        v.online_features == null && length(v.feature_datasets) == 0 && !contains(keys(local.online_tenant_manifest), t) ? {} : {
           features = merge(
             length(v.feature_datasets) == 0 ? {} : { datasets = v.feature_datasets },
             v.online_features == null ? {} : {
               online_store = "projects/${var.project_id}/locations/${var.region}/featureOnlineStores/${local.online_store_names[t]}"
-          })
+            },
+          lookup(local.online_tenant_manifest, t, {}))
       })
     }
     observability = merge({
@@ -78,7 +79,7 @@ locals {
 resource "google_storage_bucket_object" "manifest" {
   bucket        = google_storage_bucket.artifacts.name
   name          = "pipewright/environment.json"
-  content       = jsonencode(local.manifest)
+  content       = jsonencode(merge(local.manifest, length(local.online_manifest) == 0 ? {} : { features = local.online_manifest }))
   content_type  = "application/json"
   cache_control = "no-cache, max-age=0"
 }
