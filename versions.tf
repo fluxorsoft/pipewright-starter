@@ -3,6 +3,7 @@ terraform {
   required_providers {
     google      = { source = "hashicorp/google", version = "~> 8.5" }
     google-beta = { source = "hashicorp/google-beta", version = "~> 8.5" }
+    time        = { source = "hashicorp/time", version = "~> 0.13" } # IAM propagation waits (1.4.1)
   }
 }
 

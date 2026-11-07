@@ -66,8 +66,16 @@ resource "google_project_iam_custom_role" "features_snapshots" {
   permissions = ["bigquery.tables.deleteSnapshot"]
 }
 
+# A dataset rejects a custom role created seconds before ("does not exist in the resource's hierarchy", found live).
+resource "time_sleep" "features_snapshots_role" {
+  count           = local.features_snap ? 1 : 0
+  create_duration = "60s"
+  depends_on      = [google_project_iam_custom_role.features_snapshots]
+}
+
 resource "google_bigquery_dataset_iam_member" "launcher_snapshot_expiry" {
-  for_each = local.features_snap ? toset(keys(local.tenants)) : toset([])
+  for_each   = local.features_snap ? toset(keys(local.tenants)) : toset([])
+  depends_on = [time_sleep.features_snapshots_role]
 
   project    = var.project_id
   dataset_id = google_bigquery_dataset.tenant[each.key].dataset_id
