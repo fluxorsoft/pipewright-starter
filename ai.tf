@@ -134,4 +134,12 @@ resource "google_project_iam_audit_config" "agent" {
   audit_log_config {
     log_type = "DATA_READ"
   }
+  # Cloud Storage: this resource also carries DATA_WRITE when integrity.tf wants it (an audit config is authoritative
+  # for its service, so two resources on storage would erase each other's log types; found live in 1.4.1).
+  dynamic "audit_log_config" {
+    for_each = each.value == "storage.googleapis.com" && local.data_write_on ? ["DATA_WRITE"] : []
+    content {
+      log_type = audit_log_config.value
+    }
+  }
 }

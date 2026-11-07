@@ -160,8 +160,9 @@ resource "google_cloud_scheduler_job" "renewer" {
 
 # ---------------------------------------------------------------- audit logs (FR-102) --
 
+# Only when ai.tf's agent audit logs do not already own Cloud Storage's audit config (they add DATA_WRITE there).
 resource "google_project_iam_audit_config" "storage_data_write" {
-  count   = local.data_write_on ? 1 : 0
+  count   = local.data_write_on && !var.agent_audit_logs ? 1 : 0
   project = var.project_id
   service = "storage.googleapis.com"
   audit_log_config {
