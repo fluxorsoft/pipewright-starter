@@ -7,7 +7,7 @@ locals {
   features_policy  = try(var.policies.integrity.features, null)
   features_check   = try(local.features_policy.check, "off") == "on"
   features_built   = local.features_check && try(local.features_policy.built_tables, false) == true
-  features_snap    = try(local.features_policy.snapshot_days, 0) > 0
+  features_snap    = coalesce(try(local.features_policy.snapshot_days, null), 0) > 0 # null when unset (found live)
   features_reads   = try(local.features_policy.record_reads, false) == true || try(local.features_policy.fingerprint_rows, false) == true || local.features_snap
   features_any     = local.features_check || local.features_reads
   feature_datasets = distinct(concat([for t, v in local.tenants : "${var.project_id}.${v.dataset}"], flatten([for t, v in local.tenants : v.feature_datasets])))
