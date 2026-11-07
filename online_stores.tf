@@ -384,3 +384,12 @@ resource "google_storage_bucket_iam_member" "launcher_online_requests" {
     expression = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/online-sync/\")"
   }
 }
+
+# The launcher reads the instance's server CA, which it pins in each lookup service (found live: without it the
+# service would encrypt but not verify the database; the launcher now refuses to create one).
+resource "google_project_iam_member" "launcher_cloudsql_viewer" {
+  count   = local.online_sql ? 1 : 0
+  project = var.project_id
+  role    = "roles/cloudsql.viewer"
+  member  = "serviceAccount:${google_service_account.launcher.email}"
+}
