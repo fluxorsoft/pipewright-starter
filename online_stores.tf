@@ -158,11 +158,13 @@ resource "google_service_account" "online_admin" {
 }
 
 resource "google_sql_user" "online_admin" {
-  count          = local.online_sql ? 1 : 0
-  instance       = google_sql_database_instance.online[0].name
-  name           = trimsuffix(google_service_account.online_admin[0].email, ".gserviceaccount.com")
-  type           = "CLOUD_IAM_SERVICE_ACCOUNT"
-  database_roles = ["cloudsqlsuperuser"]
+  # The instance removes them when it goes; dropping a user that owns the database or holds grants fails (found live).
+  deletion_policy = "ABANDON"
+  count           = local.online_sql ? 1 : 0
+  instance        = google_sql_database_instance.online[0].name
+  name            = trimsuffix(google_service_account.online_admin[0].email, ".gserviceaccount.com")
+  type            = "CLOUD_IAM_SERVICE_ACCOUNT"
+  database_roles  = ["cloudsqlsuperuser"]
 }
 
 resource "google_service_account" "lookup" {
@@ -172,17 +174,21 @@ resource "google_service_account" "lookup" {
 }
 
 resource "google_sql_user" "runner" {
-  for_each = local.sql_tenants
-  instance = google_sql_database_instance.online[0].name
-  name     = trimsuffix(google_service_account.runner[each.key].email, ".gserviceaccount.com")
-  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
+  # The instance removes them when it goes; dropping a user that owns the database or holds grants fails (found live).
+  deletion_policy = "ABANDON"
+  for_each        = local.sql_tenants
+  instance        = google_sql_database_instance.online[0].name
+  name            = trimsuffix(google_service_account.runner[each.key].email, ".gserviceaccount.com")
+  type            = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 resource "google_sql_user" "lookup" {
-  for_each = local.sql_tenants
-  instance = google_sql_database_instance.online[0].name
-  name     = trimsuffix(google_service_account.lookup[each.key].email, ".gserviceaccount.com")
-  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
+  # The instance removes them when it goes; dropping a user that owns the database or holds grants fails (found live).
+  deletion_policy = "ABANDON"
+  for_each        = local.sql_tenants
+  instance        = google_sql_database_instance.online[0].name
+  name            = trimsuffix(google_service_account.lookup[each.key].email, ".gserviceaccount.com")
+  type            = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 resource "google_project_iam_member" "online_sql" {
