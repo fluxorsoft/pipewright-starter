@@ -208,12 +208,7 @@ resource "google_logging_project_sink" "audit" {
   EOT
 }
 
-resource "google_project_iam_member" "audit_sink_writer" {
-  count   = local.audit_on ? 1 : 0
-  project = var.project_id
-  role    = "roles/logging.bucketWriter"
-  member  = google_logging_project_sink.audit[0].writer_identity
-}
+# A sink into a log bucket of the same project needs no writer grant (found live: its writer_identity is empty).
 
 # ---------------------------------------------------------------- environment alerts --
 

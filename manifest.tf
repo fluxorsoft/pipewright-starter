@@ -62,11 +62,13 @@ locals {
     observability = merge({
       events_topic = local.topic_id["events"]
       }, var.event_log ? { evidence_dataset = google_bigquery_dataset.evidence[0].dataset_id } : {},
-      local.data_write_on ? { data_write_logs = true } : {},
-      local.audit_on ? {
-        audit_log_bucket     = "projects/${var.project_id}/locations/global/buckets/${local.p}-audit"
-        audit_retention_days = var.audit_retention_days
-    } : {})
+      # Pipewright 1.4.1 (FR-102). Written whatever their value, null when off: a conditional object would turn the
+      # number into a string (found live: the manifest failed validation).
+      {
+        data_write_logs      = local.data_write_on ? true : null
+        audit_log_bucket     = local.audit_on ? "projects/${var.project_id}/locations/global/buckets/${local.p}-audit" : null
+        audit_retention_days = local.audit_on ? var.audit_retention_days : null
+    })
   }
 }
 

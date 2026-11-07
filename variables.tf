@@ -149,7 +149,7 @@ variable "policies" {
   default = {}
 
   validation {
-    condition     = try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true) && try(contains(["on", "off"], var.policies.integrity.pin), true) && try(contains(["on", "off"], var.policies.integrity.watch), true) && try(can(regex("^[0-9]+[hd]$", var.policies.integrity.watch_every)), true) && try(can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.policies.integrity.until)), true)
+    condition     = var.policies.integrity == null ? true : (try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.pin, "on")), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.watch, "off")), true) && try(can(regex("^[0-9]+[hd]$", coalesce(var.policies.integrity.watch_every, "1h"))), true) && try(can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", coalesce(var.policies.integrity.until, "2000-01-01"))), true))
     error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked; pin and watch on or off; watch_every like 1h or 1d; until a date (YYYY-MM-DD)."
   }
 }
