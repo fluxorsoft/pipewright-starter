@@ -144,6 +144,14 @@ variable "policies" {
       watch_every = optional(string)
       until       = optional(string)
       reason      = optional(string)
+      # Pipewright 1.4.1 (FR-103): feature definitions checked against each use case's feature contract (features.tf)
+      features = optional(object({
+        check            = optional(string)
+        built_tables     = optional(bool)
+        record_reads     = optional(bool)
+        fingerprint_rows = optional(bool)
+        snapshot_days    = optional(number)
+      }))
     }))
   })
   default = {}

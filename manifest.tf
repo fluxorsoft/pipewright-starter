@@ -31,9 +31,12 @@ locals {
       },
       var.policies.integrity == null ? {} : {
         integrity = merge(
-          { for k, v in var.policies.integrity : k => v if v != null && k != "lock" },
+          { for k, v in var.policies.integrity : k => v if v != null && !contains(["lock", "features"], k) },
           var.policies.integrity.lock == null ? {} : {
             lock = { for k, v in var.policies.integrity.lock : k => v if v != null }
+          },
+          var.policies.integrity.features == null ? {} : {
+            features = { for k, v in var.policies.integrity.features : k => v if v != null }
         })
     })
     approver_groups = {
