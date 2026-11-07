@@ -186,13 +186,12 @@ resource "google_sql_user" "lookup" {
 }
 
 resource "google_project_iam_member" "online_sql" {
+  # Static keys (role|who): the emails are known only after apply.
   for_each = local.online_sql ? merge(
-    { for pair in setproduct(["roles/cloudsql.client", "roles/cloudsql.instanceUser"], concat(
-      ["serviceAccount:${google_service_account.online_admin[0].email}"],
-      [for t in local.sql_tenants : "serviceAccount:${google_service_account.runner[t].email}"],
-      [for t in local.sql_tenants : "serviceAccount:${google_service_account.lookup[t].email}"])) :
-      "${pair[0]}|${pair[1]}" => { role = pair[0], member = pair[1] }
-  }) : {}
+    { for r in ["client", "instanceUser"] : "${r}|admin" => { role = "roles/cloudsql.${r}", member = "serviceAccount:${google_service_account.online_admin[0].email}" } },
+    merge([for t in local.sql_tenants : { for r in ["client", "instanceUser"] : "${r}|runner|${t}" => { role = "roles/cloudsql.${r}", member = "serviceAccount:${google_service_account.runner[t].email}" } }]...),
+    merge([for t in local.sql_tenants : { for r in ["client", "instanceUser"] : "${r}|lookup|${t}" => { role = "roles/cloudsql.${r}", member = "serviceAccount:${google_service_account.lookup[t].email}" } }]...)
+  ) : {}
   project = var.project_id
   role    = each.value.role
   member  = each.value.member
