@@ -19,7 +19,7 @@
  */
 
 locals {
-  online_file  = fileexists("${path.root}/${var.online_store_file}") ? yamldecode(file("${path.root}/${var.online_store_file}")) : {}
+  online_file  = try(yamldecode(file("${path.root}/${var.online_store_file}")), {})
   online_sql   = try(local.online_file.cloudsql, null) != null && try(local.online_file.cloudsql.enabled, true)
   online_bq    = try(local.online_file.bigquery.bi_engine_gib, 0) > 0
   online_types = try(local.online_file.types, distinct(concat(["bigtable"], local.online_sql ? ["cloudsql"] : [], local.online_bq ? ["bigquery"] : [])))
