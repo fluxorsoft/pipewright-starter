@@ -23,6 +23,7 @@ top of the same building blocks.
 | Image cleanup | Untagged images older than 30 days are deleted (`image_retention_days`); every image Pipewright pushes is tagged |
 | Optional: CI | `github = { repository = "org/repo" }`: a Workload Identity pool and provider for that repository, a CI service account among the operators (`ci.tf`) |
 | Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
+| Optional: other online stores | `online_store.yaml` (copy `online_store.yaml.example`): Cloud SQL for PostgreSQL with a private network, sync jobs and lookup identities, and/or a BigQuery BI Engine reservation (`online_stores.tf`, FR-104) |
 | Optional: AI build assistance | `tenants.<team>.agent_identity = true`: an agent service account per team with metadata-only roles, impersonated by the team's members, named in the manifest for `pipewright mcp` (`ai.tf`, Pipewright 1.3.0); `tenants.<team>.feature_datasets`: the feature tables' datasets the team may read (read-only for the runner, schemas only for the agent) |
 
 ## Before you start
@@ -132,6 +133,43 @@ it. The feature groups must exist before the view does (the data team registers 
 view's first sync starts when the view is created and can fail for a minute while the Agent Platform service
 agent's new read access on the team's dataset takes effect (`bigtable.tables.mutateRows` denied); sync it again,
 and `pipewright doctor` warns of a view whose sync has not finished.
+
+### Cheaper online stores: Cloud SQL and BigQuery
+
+Bigtable costs about $781 a month per node. For modest traffic, copy `online_store.yaml.example` to
+`online_store.yaml` and turn on what your teams need. Every key is listed there with its default and its cost.
+
+```yaml
+cloudsql:
+  tier: db-custom-1-3840        # about $61 a month; checked against the machine types Cloud SQL offers
+  availability: zonal           # regional: high availability, about twice the compute
+  tenants: [retail]             # each gets a sync job (its runner) and a lookup identity
+bigquery:
+  bi_engine_gib: 1              # about $38 a month per GiB
+lookup:
+  defaults: { min_instances: 0, cpu_boost: true, billing: request }
+  limits:   { max_instances: 10, min_min_instances: 0 }   # set the floor to 1 in production
+```
+
+Apply, then run the setup job once. It creates the database and each team's grants as the admin identity, with no
+password user:
+
+```bash
+gcloud run jobs execute pw-online-setup --region <region> --wait
+```
+
+Teams then set `model.serving.online_store` in their use case and add a schedule with `pipeline: online_sync`;
+`pipewright deploy-model` creates their lookup service. Grants this adds:
+
+| Who | Grant | Why |
+|---|---|---|
+| `pw-online-admin` | IAM database user with `cloudsqlsuperuser`; `cloudsql.client`, `cloudsql.instanceUser`; read on the manifest | the one-time setup |
+| each listed team's runner | IAM database user; `cloudsql.client`, `cloudsql.instanceUser`; with `isolate_tenant_artifacts`, write on `online-export/<team>/` and `online-sync/<team>/` | runs the sync |
+| `pw-pwl-<team>` | IAM database user; `cloudsql.client`, `cloudsql.instanceUser` | runs the team's lookup services |
+| the launcher | `run.admin`; act as the lookup identities and runners; `cloudsql.viewer`; create under `online-sync/`; `bigquery.jobs.listAll` (with BI Engine) | starts syncs, creates lookup services pinned to the database's CA, alerts on billed lookups |
+
+The full guide (costs, performance, the sync, building your own store from the Parquet export) is Pipewright's
+[docs/ONLINE_STORES.md](https://github.com/fluxorsoft/pipewright/blob/main/docs/ONLINE_STORES.md).
 
 ## Ray steps
 
