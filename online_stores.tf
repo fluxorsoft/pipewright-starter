@@ -353,7 +353,11 @@ locals {
       } : {},
       local.online_sql ? {
         lookup = merge(
-          { network = google_compute_network.online[0].id, subnetwork = google_compute_subnetwork.online[0].id },
+          { network = google_compute_network.online[0].id, subnetwork = google_compute_subnetwork.online[0].id,
+            # Agent Platform's public endpoints call from Google's network, outside the VPC: internal ingress answers
+            # them 404 (found live). The service stays IAM-only (the endpoint's identity is its one invoker); private
+            # endpoints over Private Service Connect (FR-92) will allow internal ingress.
+          ingress = try(local.lookup_cfg.ingress, "INGRESS_TRAFFIC_ALL") },
           var.launcher_image == null ? {} : { image = var.launcher_image },
           try(local.lookup_cfg.defaults, null) == null ? {} : { defaults = local.lookup_cfg.defaults },
         try(local.lookup_cfg.limits, null) == null ? {} : { limits = local.lookup_cfg.limits })

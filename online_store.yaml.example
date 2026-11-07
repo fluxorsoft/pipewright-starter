@@ -42,6 +42,10 @@ bigquery:
 # Pipewright's lookup service between Agent Platform endpoints and Cloud SQL, per use case. The ML team sizes it in
 # its use case (model.serving.online_store.lookup); these are the environment's defaults and limits.
 lookup:
+  # Agent Platform's public endpoints call from outside your network, so the lookup services accept all traffic and
+  # stay IAM-only (only the endpoint's identity may call). INGRESS_TRAFFIC_INTERNAL_ONLY when only KServe or callers
+  # inside the network use them (private endpoints over Private Service Connect: FR-92).
+  ingress: INGRESS_TRAFFIC_ALL
   defaults:
     min_instances: 0           # warm instances: about $14 a month each (1 vCPU, 512Mi, idle); best effort
     cpu_boost: true            # shorter cold starts, about $0.0005 a start
