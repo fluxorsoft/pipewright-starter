@@ -53,14 +53,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.0 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.1 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.4.0 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.4.1 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -73,8 +73,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.4.0"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.0/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.4.1"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.1/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
@@ -159,6 +159,25 @@ approved here). Three settings, all optional:
 `deploy-model` and `promote` also cross-check each approval with Cloud Audit Logs: whoever deploys or promotes
 needs `roles/logging.viewer` for it (without it the check is a note). In a test environment that a closed retrain
 loop trains in, `tenants.<team>.loop_production_project` names the production project whose tables it may read.
+
+New in 1.4.1 (all in `integrity.tf` and `features.tf`, each off or harmless by default):
+
+- `policies.integrity.pin` (on): scoring runs and KServe load exactly the approved file generations.
+- `policies.integrity.watch = "on"` (and `watch_every`): the launcher re-checks every default and serving version and
+  records `model.integrity` when a result changes; `platform_alert_emails` turns on the environment's alerts (a change,
+  a released hold, renewal not healthy, an override in force, the watch's heartbeat missing).
+- `policies.integrity.lock.renew` with `renewer = true`: a separate renewer identity (a Cloud Run job, `pipewright
+  integrity renew`) keeps approved files locked while they serve. `renewer_schedule = true` runs it daily: turn it on
+  after running the job once by hand (`gcloud run jobs execute <prefix>-renewer`) and reading its `model.lock.reconciliation`.
+- `policies.integrity.until` and `reason`: a time-boxed `warn`, recorded and alerted, back to refuse after `until`.
+- `data_write_logs = true`: Cloud Storage DATA_WRITE audit logs (who wrote a file), with an exclusion that keeps only
+  approved folders and contracts; `audit_retention_days` routes audit entries to a log bucket kept that long
+  (`audit_log_bucket_locked`, true by default, makes its retention impossible to shorten).
+- `policies.integrity.features = { check = "on" }`: feature definitions checked against each use case's feature
+  contract (`pipewright features contract`). `built_tables = true` adds a custom role with only
+  `bigquery.jobs.listAll` and `bigquery.transfers.get` (job SQL is visible to it); `record_reads`, `fingerprint_rows`
+  and `snapshot_days` record what scoring read (snapshots add a role with only `bigquery.tables.deleteSnapshot` on the
+  tenant datasets).
 
 `isolate_tenant_artifacts = true` lets each team's runner write only under its own pipeline root, so one team's runs
 cannot overwrite another team's models or evaluation records.

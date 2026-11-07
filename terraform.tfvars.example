@@ -28,7 +28,18 @@ policies = {
   # retention for the artifacts bucket: check the plan). inference: "warn" or "refuse" a scoring run whose default
   # version has no approval.
   # integrity = { mode = "refuse", lock = { days = 30, mode = "unlocked" }, inference = "warn" }
+  # Pipewright 1.4.1, inside integrity (defaults shown): pin = "on", watch = "off", watch_every = "1h",
+  # lock.renew = true, lock.rollback_days = <lock.days>, until = null, reason = null,
+  # features = { check = "off", built_tables = false, record_reads = false, fingerprint_rows = false, snapshot_days = 0 }
 }
+
+# Pipewright 1.4.1 (integrity.tf), defaults shown:
+# renewer                 = true   # the renewer identity and its Cloud Run job (with lock.days and lock.renew)
+# renewer_schedule        = false  # run it daily: after one run by hand passes
+# data_write_logs         = false  # Cloud Storage DATA_WRITE audit logs (who wrote a file)
+# audit_retention_days    = 0      # route audit entries to a log bucket kept this long
+# audit_log_bucket_locked = true   # its retention cannot be shortened
+# platform_alert_emails   = []     # the environment's integrity alerts
 
 # Pipewright phase 6: each team's runner writes only under its own pipeline root (recommended for shared projects).
 # isolate_tenant_artifacts = true
