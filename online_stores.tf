@@ -371,3 +371,16 @@ variable "online_store_file" {
   type        = string
   default     = "online_store.yaml"
 }
+
+# The launcher hands each scheduled sync its request (the manifest and the released configuration) under
+# online-sync/<tenant>/<usecase>/requests/, as it hands a pipeline run its configuration (found live).
+resource "google_storage_bucket_iam_member" "launcher_online_requests" {
+  count  = length(local.sql_tenants) > 0 || local.online_bq ? 1 : 0
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.launcher.email}"
+  condition {
+    title      = "online-sync-requests"
+    expression = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/online-sync/\")"
+  }
+}
