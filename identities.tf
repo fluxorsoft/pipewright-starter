@@ -26,7 +26,7 @@ resource "google_project_iam_member" "launcher" {
   # Pipewright phase 6: with policies.integrity.inference warn or refuse the launcher queries the event log, which
   # needs BigQuery jobs (found live: without it every scoring run was refused, its approval unreadable).
   for_each = toset(concat(["roles/aiplatform.user", "roles/logging.logWriter", "roles/monitoring.metricWriter"],
-  contains(["warn", "refuse"], try(var.policies.integrity.inference, "off")) ? ["roles/bigquery.jobUser"] : []))
+  contains(["warn", "refuse"], try(var.policies.integrity.inference, "off")) || try(var.policies.integrity.watch, "off") == "on" ? ["roles/bigquery.jobUser"] : []))
 
   project = var.project_id
   role    = each.value

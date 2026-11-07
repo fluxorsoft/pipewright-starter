@@ -80,7 +80,7 @@ resource "google_bigquery_dataset_iam_member" "evidence_readers" {
 # Pipewright phase 6: with policies.integrity.inference warn or refuse, the launcher reads the event log to see
 # whether a scoring run's default version was approved. Read only; nothing else gets it.
 resource "google_bigquery_dataset_iam_member" "launcher_reads_events" {
-  count = var.event_log && contains(["warn", "refuse"], try(var.policies.integrity.inference, "off")) ? 1 : 0
+  count = var.event_log && (contains(["warn", "refuse"], try(var.policies.integrity.inference, "off")) || try(var.policies.integrity.watch, "off") == "on") ? 1 : 0
 
   dataset_id = google_bigquery_dataset.evidence[0].dataset_id
   role       = "roles/bigquery.dataViewer"

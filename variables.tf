@@ -132,15 +132,25 @@ variable "policies" {
       lock = optional(object({
         days = optional(number, 0)
         mode = optional(string, "unlocked")
+        # Pipewright 1.4.1: keep approved files protected while in use (the renewer), and the rollback window
+        renew         = optional(bool)
+        rollback_days = optional(number)
       }))
       inference = optional(string)
+      # Pipewright 1.4.1 (FR-101, FR-102): pin scoring and KServe to the approved generations (default on); the
+      # launcher's watch (off by default) and its interval; a time-boxed warn (until, reason).
+      pin         = optional(string)
+      watch       = optional(string)
+      watch_every = optional(string)
+      until       = optional(string)
+      reason      = optional(string)
     }))
   })
   default = {}
 
   validation {
-    condition     = try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true)
-    error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked."
+    condition     = try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true) && try(contains(["on", "off"], var.policies.integrity.pin), true) && try(contains(["on", "off"], var.policies.integrity.watch), true) && try(can(regex("^[0-9]+[hd]$", var.policies.integrity.watch_every)), true) && try(can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.policies.integrity.until)), true)
+    error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked; pin and watch on or off; watch_every like 1h or 1d; until a date (YYYY-MM-DD)."
   }
 }
 
@@ -214,4 +224,42 @@ variable "agent_audit_logs" {
   description = "AI build assistance: turn on Data Access audit logs for BigQuery, Agent Platform and Cloud Storage, so every metadata read by an agent identity is recorded (billed by volume)."
   type        = bool
   default     = false
+}
+
+# ---------------------------------------------------------------- Pipewright 1.4.1 (FR-101, FR-102) --
+
+variable "renewer" {
+  description = "Pipewright 1.4.1: deploy the lock renewer (a separate identity and a Cloud Run job) when policies.integrity.lock.days > 0 and lock.renew is not false."
+  type        = bool
+  default     = true
+}
+
+variable "renewer_schedule" {
+  description = "Pipewright 1.4.1: run the renewer daily. Ships false: turn it on after the live gate has passed in this environment (DATA_WRITE logs, the exclusion, the alerts and the watch's cross-identity check tested; a hold released on a test object raised the alert)."
+  type        = bool
+  default     = false
+}
+
+variable "data_write_logs" {
+  description = "Pipewright 1.4.1 (FR-102): Cloud Storage DATA_WRITE audit logs, kept only for the artifacts bucket's model folders and contracts, so lineage and the alerts can name who wrote a file. Always on with the renewer."
+  type        = bool
+  default     = false
+}
+
+variable "audit_retention_days" {
+  description = "Pipewright 1.4.1 (FR-102): keep Admin Activity for Agent Platform and the artifacts bucket this long in a log bucket (0: off; Cloud Logging keeps 400 days). The approval cross-check reads it."
+  type        = number
+  default     = 0
+}
+
+variable "audit_log_bucket_locked" {
+  description = "Pipewright 1.4.1: lock the audit log bucket's retention (nobody can shorten it; the bucket cannot be deleted while it holds entries). Leave true in real environments."
+  type        = bool
+  default     = true
+}
+
+variable "platform_alert_emails" {
+  description = "Pipewright 1.4.1: who the environment's integrity alerts email (the watch stopped, an approved file changed, the renewer unhealthy or protection running low, an override in force). Empty: no alerts."
+  type        = list(string)
+  default     = []
 }

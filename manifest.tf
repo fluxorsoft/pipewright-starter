@@ -14,13 +14,16 @@ locals {
     }
     artifacts_bucket = local.buckets.artifacts
     landing_bucket   = local.buckets.landing
-    launcher = {
+    launcher = merge({
       url                = local.launcher_url
       service            = local.launcher_name
       service_account    = google_service_account.launcher.email
       subscription       = "${local.launcher_name}-landing"
       run_requests_topic = local.topic_id["run-requests"]
-    }
+      }, length(google_cloud_run_v2_job.renewer) == 0 ? {} : {
+      renewer_job             = google_cloud_run_v2_job.renewer[0].id
+      renewer_service_account = google_service_account.renewer[0].email
+    })
     policies = merge(
       { deploy_model = var.policies.deploy_model, promote_model = var.policies.promote_model },
       var.policies.retraining == null ? {} : {
@@ -28,9 +31,10 @@ locals {
       },
       var.policies.integrity == null ? {} : {
         integrity = merge(
-          var.policies.integrity.mode == null ? {} : { mode = var.policies.integrity.mode },
-          var.policies.integrity.lock == null ? {} : { lock = var.policies.integrity.lock },
-        var.policies.integrity.inference == null ? {} : { inference = var.policies.integrity.inference })
+          { for k, v in var.policies.integrity : k => v if v != null && k != "lock" },
+          var.policies.integrity.lock == null ? {} : {
+            lock = { for k, v in var.policies.integrity.lock : k => v if v != null }
+        })
     })
     approver_groups = {
       for g, v in var.approver_groups : g => {
@@ -57,7 +61,12 @@ locals {
     }
     observability = merge({
       events_topic = local.topic_id["events"]
-    }, var.event_log ? { evidence_dataset = google_bigquery_dataset.evidence[0].dataset_id } : {})
+      }, var.event_log ? { evidence_dataset = google_bigquery_dataset.evidence[0].dataset_id } : {},
+      local.data_write_on ? { data_write_logs = true } : {},
+      local.audit_on ? {
+        audit_log_bucket     = "projects/${var.project_id}/locations/global/buckets/${local.p}-audit"
+        audit_retention_days = var.audit_retention_days
+    } : {})
   }
 }
 
