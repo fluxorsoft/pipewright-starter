@@ -1,0 +1,49 @@
+# Serving (Pipewright 1.4.2): endpoints in Terraform, public or private (FR-92), and shared pools for model
+# co-hosting (FR-105). Copy to serving.yaml to turn any of it on; without the file nothing in serving.tf is created and
+# every use case deploys as before: `pipewright deploy-model` creates its endpoint and deploys on its own machines.
+# Costs are Google's list prices for europe-west2 (2026-11-07), before discounts.
+
+# Use cases whose endpoint Terraform creates (<use case>-endpoint). Terraform owns the endpoint (CMEK when the
+# environment has a key, labels, networking) and ignores the models on it: `pipewright deploy-model` still deploys
+# them, with machine type and replicas from CI/CD, and never creates an endpoint for a use case listed here.
+endpoints: {}
+#  churn:
+#    tenant: churn
+#    private: false     # true: a Private Service Connect endpoint, reachable inside the network only. About $7.30 a
+#                       # month (an endpoint is $0.01 an hour) plus $0.004 to $0.01 per GiB processed. Its callers
+#                       # (or the lookup gateway) must be inside the network; Agent Platform cannot call into it.
+#    callers: []        # serviceAccount:/group:/user: members allowed to predict on this endpoint
+
+# Private endpoints need a network the callers are in. Default: the online store's network (online_store.yaml,
+# cloudsql), where the lookup gateway runs. One service connection policy (free) lets Agent Platform make each
+# endpoint's address in the subnet below; a private DNS zone (about $0.20 a month) gives each its name.
+private:
+  # network: projects/<project>/global/networks/<name>   # another network instead of the online store's
+  subnet: 10.61.0.0/28
+
+# Shared pools: only when an ML team asks for model co-hosting. A use case joins one with model.serving.pool; without
+# it, it deploys on its own machines. A pool runs Google's prebuilt TensorFlow or PyTorch (Preview) serving image only,
+# the same one for all its models; a team's own serving image stays on dedicated machines. Every change to a pool
+# (a deploy, an undeploy, a resize) restarts all its machines, so production keeps at least 2 and the lookup gateway
+# retries. n1-standard-2 is about $115 a month a machine, n1-standard-4 about $229, e2-standard-2 about $82; a pool
+# never scales to zero.
+pools: {}
+#  churn-shared:
+#    tenant: churn
+#    machine: n1-standard-4
+#    min_replicas: 2          # production: at least 2 (policies below); 1 elsewhere gives neighbours a minute of
+#                             # errors on every change
+#    max_replicas: 3
+#    cpu_target: 60
+#    image: europe-docker.pkg.dev/vertex-ai/prediction/pytorch-cpu.2-4:latest
+#    network: standard        # standard or psc: a pool serves one kind of endpoint (found live: mixing failed)
+#    managed_by: ci           # ci (the default): `pipewright serving pools apply` in CI/CD creates it through the
+#                             # API with the environment's CMEK and the tenant's identity. terraform: created here
+#                             # (the provider cannot set CMEK or the identity yet, and every change rebuilds it).
+
+# Rules for pools in this environment (manifest policies.serving.pools). Defaults: in an environment whose name has
+# "prod", min_replicas 2 and no Preview images; elsewhere min 1 and Preview allowed.
+policies: {}
+#  allow_preview: false
+#  min_replicas: 2
+#  settle_seconds: 360        # how long after a change Pipewright waits for the machines to finish restarting

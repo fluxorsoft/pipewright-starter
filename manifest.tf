@@ -38,7 +38,9 @@ locals {
           var.policies.integrity.features == null ? {} : {
             features = { for k, v in var.policies.integrity.features : k => v if v != null }
         })
-    })
+      },
+      local.serving_policies # Pipewright 1.4.2 (FR-105): serving.yaml policies
+    )
     approver_groups = {
       for g, v in var.approver_groups : g => {
         topic        = local.approver_tpcs[g]
@@ -77,9 +79,10 @@ locals {
 }
 
 resource "google_storage_bucket_object" "manifest" {
-  bucket        = google_storage_bucket.artifacts.name
-  name          = "pipewright/environment.json"
-  content       = jsonencode(merge(local.manifest, length(local.online_manifest) == 0 ? {} : { features = local.online_manifest }))
+  bucket = google_storage_bucket.artifacts.name
+  name   = "pipewright/environment.json"
+  content = jsonencode(merge(local.manifest, length(local.online_manifest) == 0 ? {} : { features = local.online_manifest },
+  length(local.serving_manifest) == 0 ? {} : { serving = local.serving_manifest }))
   content_type  = "application/json"
   cache_control = "no-cache, max-age=0"
 }
