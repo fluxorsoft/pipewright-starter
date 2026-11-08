@@ -132,14 +132,8 @@ resource "google_dns_managed_zone" "serving_psc" {
   depends_on = [google_project_service.serving]
 }
 
-resource "google_dns_record_set" "serving_psc" {
-  for_each     = local.serving_private
-  managed_zone = google_dns_managed_zone.serving_psc[0].name
-  name         = "${local.serving_ids[each.key]}-${var.region}-${local.number}.prediction.p.vertexai.goog."
-  type         = "A"
-  ttl          = 300
-  rrdatas      = [google_vertex_ai_endpoint.serving[each.key].private_service_connect_config[0].psc_automation_configs[0].ip_address]
-}
+# The endpoints' records: Agent Platform makes a private endpoint's address with its first deployed model (found
+# live), so Terraform cannot know it here; deploy-model writes the record into this zone once the address exists.
 
 # ----------------------------------------------------------------------------------------------- pools --
 
@@ -173,8 +167,9 @@ locals {
       resource = "projects/${local.number}/locations/${var.region}/endpoints/${local.serving_ids[k]}"
       private  = try(v.private, false)
       }, try(v.private, false) ? {
-      dns     = trimsuffix(google_dns_record_set.serving_psc[k].name, ".")
-      network = local.serving_network
+      dns      = "${local.serving_ids[k]}-${var.region}-${local.number}.prediction.p.vertexai.goog"
+      dns_zone = google_dns_managed_zone.serving_psc[0].name
+      network  = local.serving_network
     } : {}) }
     pools = { for k, v in local.serving_pools : k => merge({
       tenant     = v.tenant, machine = v.machine, min_replicas = v.min_replicas, max_replicas = v.max_replicas,
