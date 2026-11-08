@@ -82,6 +82,18 @@ resource "google_vertex_ai_endpoint" "serving" {
   depends_on = [google_project_service.this, google_network_connectivity_service_connection_policy.serving]
 }
 
+# The lookup gateway (FR-106): the tenant's lookup identity may predict on its tenant's endpoints. Granted here because
+# the launcher may not set IAM on endpoints (found live: it would need setIamPolicy on every endpoint in the project).
+resource "google_vertex_ai_endpoint_iam_member" "gateway" {
+  provider = google-beta
+  for_each = { for k, v in local.serving_endpoints : k => v if contains(tolist(local.sql_tenants), v.tenant) }
+  project  = var.project_id
+  location = var.region
+  endpoint = google_vertex_ai_endpoint.serving[each.key].name
+  role     = "roles/aiplatform.user"
+  member   = "serviceAccount:${google_service_account.lookup[each.value.tenant].email}"
+}
+
 resource "google_vertex_ai_endpoint_iam_member" "callers" {
   provider = google-beta
   for_each = { for pair in flatten([for k, v in local.serving_endpoints : [for m in try(tolist(v.callers), []) : { key = "${k}/${m}", uc = k, member = m }]]) : pair.key => pair }
