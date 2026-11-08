@@ -125,7 +125,7 @@ resource "google_cloud_run_v2_job" "renewer" {
 
 # Only the scheduler (as the renewer itself) runs the job; nobody else is given run or actAs on it.
 resource "google_cloud_run_v2_job_iam_member" "renewer_runs_itself" {
-  count    = length(google_cloud_run_v2_job.renewer)
+  count    = local.renew_on && local.deployed ? 1 : 0   # as the renewer job (not length(): it breaks import)
   name     = google_cloud_run_v2_job.renewer[0].name
   location = var.region
   role     = "roles/run.invoker"
@@ -134,7 +134,7 @@ resource "google_cloud_run_v2_job_iam_member" "renewer_runs_itself" {
 
 # The gate, as code: the schedule exists only with the watch on and the detective controls in place; it ships paused.
 resource "google_cloud_scheduler_job" "renewer" {
-  count            = length(google_cloud_run_v2_job.renewer) > 0 && local.watch_on ? 1 : 0
+  count            = local.renew_on && local.deployed && local.watch_on ? 1 : 0
   name             = local.renewer_name
   region           = var.region
   description      = "Pipewright lock renewal, daily. Paused until the live gate has passed (renewer_schedule). Managed by Terraform."
@@ -290,7 +290,7 @@ resource "google_logging_metric" "watch_heartbeat" {
 }
 
 resource "google_monitoring_alert_policy" "watch_heartbeat" {
-  count        = length(google_logging_metric.watch_heartbeat)
+  count        = local.alerts_on && local.watch_on ? 1 : 0   # as the metric (not length(): it breaks import)
   display_name = "pipewright ${var.environment}: the integrity watch has stopped"
   combiner     = "OR"
   severity     = "CRITICAL"
