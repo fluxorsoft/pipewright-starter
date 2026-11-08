@@ -138,12 +138,15 @@ resource "google_network_connectivity_service_connection_policy" "serving" {
 }
 
 resource "google_dns_managed_zone" "serving_psc" {
-  count       = local.serving_psc ? 1 : 0
-  name        = "${local.p}-vertexai-prediction"
-  dns_name    = "prediction.p.vertexai.goog."
-  description = "Private endpoints' names (Pipewright FR-92); the certificate names *.prediction.p.vertexai.goog"
-  visibility  = "private"
-  labels      = local.labels
+  count    = local.serving_psc ? 1 : 0
+  name     = "${local.p}-vertexai-prediction"
+  dns_name = "prediction.p.vertexai.goog."
+  # deploy-model writes each endpoint's record here (Terraform cannot know the address), so a destroy removes them
+  # with the zone (found live: the zone could not be deleted with records in it).
+  force_destroy = true
+  description   = "Private endpoints' names (Pipewright FR-92); the certificate names *.prediction.p.vertexai.goog"
+  visibility    = "private"
+  labels        = local.labels
   private_visibility_config {
     networks {
       network_url = local.serving_network
