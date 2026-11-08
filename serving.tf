@@ -18,6 +18,7 @@ locals {
   serving_endpoints = try({ for k, v in local.serving_file.endpoints : k => v }, {})
   serving_private   = { for k, v in local.serving_endpoints : k => v if try(v.private, false) }
   serving_psc       = length(local.serving_private) > 0
+  serving_gateway   = length(local.serving_file) > 0 && length(local.sql_tenants) > 0
   serving_pools = { for k, v in try({ for k, v in local.serving_file.pools : k => v }, {}) : k => merge({
     min_replicas = 1, max_replicas = 1, cpu_target = 60, network = "standard", managed_by = "ci"
   }, v) }
@@ -82,16 +83,23 @@ resource "google_vertex_ai_endpoint" "serving" {
   depends_on = [google_project_service.this, google_network_connectivity_service_connection_policy.serving]
 }
 
-# The lookup gateway (FR-106): the tenant's lookup identity may predict on its tenant's endpoints. Granted here because
-# the launcher may not set IAM on endpoints (found live: it would need setIamPolicy on every endpoint in the project).
-resource "google_vertex_ai_endpoint_iam_member" "gateway" {
-  provider = google-beta
-  for_each = { for k, v in local.serving_endpoints : k => v if contains(tolist(local.sql_tenants), v.tenant) }
+# The lookup gateway (FR-106): each tenant's lookup identity may predict, and only that. Found live: a private endpoint
+# checks aiplatform.endpoints.predict on the project, not on the endpoint (an endpoint-level grant is refused), so the
+# grant is project-wide; a custom role keeps it to that one permission.
+resource "google_project_iam_custom_role" "gateway_predict" {
+  count       = local.serving_gateway ? 1 : 0
+  project     = var.project_id
+  role_id     = replace("${local.p}_gateway_predict", "-", "_")
+  title       = "Pipewright lookup gateway: predict"
+  description = "Call Agent Platform endpoints, nothing else (Pipewright FR-106)"
+  permissions = ["aiplatform.endpoints.predict"]
+}
+
+resource "google_project_iam_member" "gateway_predict" {
+  for_each = local.serving_gateway ? toset(tolist(local.sql_tenants)) : toset([])
   project  = var.project_id
-  location = var.region
-  endpoint = google_vertex_ai_endpoint.serving[each.key].name
-  role     = "roles/aiplatform.user"
-  member   = "serviceAccount:${google_service_account.lookup[each.value.tenant].email}"
+  role     = google_project_iam_custom_role.gateway_predict[0].id
+  member   = "serviceAccount:${google_service_account.lookup[each.value].email}"
 }
 
 resource "google_vertex_ai_endpoint_iam_member" "callers" {
