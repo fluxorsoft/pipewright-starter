@@ -15,10 +15,10 @@
 
 locals {
   serving_file      = try(yamldecode(file("${path.root}/${var.serving_file}")), {})
-  serving_endpoints = coalesce(try(local.serving_file.endpoints, null), {})
+  serving_endpoints = try({ for k, v in local.serving_file.endpoints : k => v }, {})
   serving_private   = { for k, v in local.serving_endpoints : k => v if try(v.private, false) }
   serving_psc       = length(local.serving_private) > 0
-  serving_pools = { for k, v in coalesce(try(local.serving_file.pools, null), {}) : k => merge({
+  serving_pools = { for k, v in try({ for k, v in local.serving_file.pools : k => v }, {}) : k => merge({
     min_replicas = 1, max_replicas = 1, cpu_target = 60, network = "standard", managed_by = "ci"
   }, v) }
   serving_network = !local.serving_psc ? null : coalesce(try(local.serving_file.private.network, null),
@@ -84,7 +84,7 @@ resource "google_vertex_ai_endpoint" "serving" {
 
 resource "google_vertex_ai_endpoint_iam_member" "callers" {
   provider = google-beta
-  for_each = { for pair in flatten([for k, v in local.serving_endpoints : [for m in coalesce(try(v.callers, null), []) : { key = "${k}/${m}", uc = k, member = m }]]) : pair.key => pair }
+  for_each = { for pair in flatten([for k, v in local.serving_endpoints : [for m in try(tolist(v.callers), []) : { key = "${k}/${m}", uc = k, member = m }]]) : pair.key => pair }
   project  = var.project_id
   location = var.region
   endpoint = google_vertex_ai_endpoint.serving[each.value.uc].name
@@ -184,7 +184,7 @@ locals {
       v.managed_by == "terraform" ? { resource = google_vertex_ai_deployment_resource_pool.serving[k].id } : {})
     }
   }
-  serving_policies = length(coalesce(try(local.serving_file.policies, null), {})) == 0 ? {} : {
+  serving_policies = length(try({ for k, v in local.serving_file.policies : k => v }, {})) == 0 ? {} : {
     serving = { pools = local.serving_file.policies }
   }
 }
