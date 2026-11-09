@@ -24,6 +24,7 @@ top of the same building blocks.
 | Optional: CI | `github = { repository = "org/repo" }`: a Workload Identity pool and provider for that repository, a CI service account among the operators (`ci.tf`) |
 | Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
 | Optional: other online stores | `online_store.yaml` (copy `online_store.yaml.example`): Cloud SQL for PostgreSQL with a private network, sync jobs and lookup identities, and/or a BigQuery BI Engine reservation (`online_stores.tf`, FR-104) |
+| Optional: serving | `serving.yaml` (copy `serving.yaml.example`): the use cases' endpoints in Terraform, public or private (Private Service Connect, private DNS), and shared pools for co-hosting (`serving.tf`, 1.4.2) |
 | Optional: AI build assistance | `tenants.<team>.agent_identity = true`: an agent service account per team with metadata-only roles, impersonated by the team's members, named in the manifest for `pipewright mcp` (`ai.tf`, Pipewright 1.3.0); `tenants.<team>.feature_datasets`: the feature tables' datasets the team may read (read-only for the runner, schemas only for the agent) |
 
 ## Before you start
@@ -54,14 +55,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.1 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.2 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.4.1 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.4.2 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -74,8 +75,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.4.1"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.1/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.4.2"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.2/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
@@ -167,6 +168,29 @@ Teams then set `model.serving.online_store` in their use case and add a schedule
 | each listed team's runner | IAM database user; `cloudsql.client`, `cloudsql.instanceUser`; with `isolate_tenant_artifacts`, write on `online-export/<team>/` and `online-sync/<team>/` | runs the sync |
 | `pw-pwl-<team>` | IAM database user; `cloudsql.client`, `cloudsql.instanceUser` | runs the team's lookup services |
 | the launcher | `run.admin`; act as the lookup identities and runners; `cloudsql.viewer`; create under `online-sync/`; `bigquery.jobs.listAll` (with BI Engine) | starts syncs, creates lookup services pinned to the database's CA, alerts on billed lookups |
+| each `export_readers` identity | `storage.objectViewer` on `online-export/<team>/` only (listing by prefix) | a team's own store loads the Parquet export |
+
+Also in `online_store.yaml` (1.4.2, each off or harmless by default):
+
+- `lookup.gateway: true` grants each team's lookup identity predict on Agent Platform endpoints (a predict-only custom
+  role), which the lookup gateway needs; with `serving.yaml` it is granted already.
+- `lookup.egress: ALL_TRAFFIC` sends the lookup services' traffic through the network, so the gateway can reach a
+  team's own store on Cloud Run with internal ingress (the default, `PRIVATE_RANGES_ONLY`, reaches it at its public
+  address, which internal ingress refuses).
+- `export_readers` (per team): who may read the team's Parquet export, for a store the team builds; the team then gets
+  a sync job, so an `online_sync` schedule publishes the export. A team behind the gateway also needs a Cloud SQL
+  tenancy (`cloudsql.tenants`): its network and lookup identity come from there.
+
+`pipewright deploy-model --undeploy` removes a use case's lookup service through the launcher (1.4.2), which also
+lets the online network go at teardown once Cloud Run releases its address (a few hours after the last service).
+
+### Endpoints in Terraform, private endpoints and shared pools (1.4.2)
+
+Copy `serving.yaml.example` to `serving.yaml` to create the use cases' endpoints in Terraform, public or private
+(Private Service Connect, with a private DNS zone that `deploy-model` writes the address into), and shared pools that
+several models deploy on (`model.serving.pool`). `id_salt` changes the endpoints' IDs for a rebuild soon after a
+teardown (a deleted endpoint's ID stays reserved for a while). Every key is in the example with its cost; the guide is
+Pipewright's [docs/SERVING.md](https://github.com/fluxorsoft/pipewright/blob/main/docs/SERVING.md).
 
 The full guide (costs, performance, the sync, building your own store from the Parquet export) is Pipewright's
 [docs/ONLINE_STORES.md](https://github.com/fluxorsoft/pipewright/blob/main/docs/ONLINE_STORES.md).
