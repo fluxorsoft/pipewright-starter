@@ -82,7 +82,7 @@ resource "google_storage_bucket_object" "manifest" {
   bucket = google_storage_bucket.artifacts.name
   name   = "pipewright/environment.json"
   content = jsonencode(merge(local.manifest, length(local.online_manifest) == 0 ? {} : { features = local.online_manifest },
-  length(local.serving_manifest) == 0 ? {} : { serving = local.serving_manifest }))
+  length(local.serving_file) == 0 ? {} : { serving = local.serving_manifest }))
   content_type  = "application/json"
   cache_control = "no-cache, max-age=0"
 }

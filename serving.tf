@@ -187,23 +187,28 @@ resource "google_vertex_ai_deployment_resource_pool" "serving" {
 }
 
 locals {
-  serving_manifest = length(local.serving_file) == 0 ? {} : {
-    endpoints = { for k, v in local.serving_endpoints : k => merge({
+  # Always an object (empty maps without serving.yaml); manifest.tf adds it only when the file exists. A `? {} :`
+  # here made Terraform unify endpoints and pools into one map type, as strings (found live, book Chapter 24).
+  serving_manifest = {
+    # One object per endpoint and pool, every key present (null when it does not apply): merge() with a conditional
+    # {} made a map, which turned booleans and numbers into strings the manifest schema refuses (found applying
+    # serving.yaml live for the book's Chapter 24).
+    endpoints = { for k, v in local.serving_endpoints : k => {
       name     = google_vertex_ai_endpoint.serving[k].display_name
       resource = "projects/${local.number}/locations/${var.region}/endpoints/${local.serving_ids[k]}"
-      private  = try(v.private, false)
-      }, try(v.private, false) ? {
-      dns      = "${local.serving_ids[k]}-${var.region}-${local.number}.prediction.p.vertexai.goog"
-      dns_zone = google_dns_managed_zone.serving_psc[0].name
-      network  = local.serving_network
-    } : {}) }
-    pools = { for k, v in local.serving_pools : k => merge({
-      tenant     = v.tenant, machine = v.machine, min_replicas = v.min_replicas, max_replicas = v.max_replicas,
-      cpu_target = v.cpu_target, image = v.image, network = v.network, managed_by = v.managed_by
-      }, v.managed_by == "ci" ? { service_account = google_service_account.runner[v.tenant].email } : {},
-      try(v.accelerator, null) == null ? {} : { accelerator = v.accelerator },
-      v.managed_by == "terraform" ? { resource = google_vertex_ai_deployment_resource_pool.serving[k].id } : {})
-    }
+      private  = try(tobool(v.private), false)
+      dns      = try(tobool(v.private), false) ? "${local.serving_ids[k]}-${var.region}-${local.number}.prediction.p.vertexai.goog" : null
+      dns_zone = try(tobool(v.private), false) ? google_dns_managed_zone.serving_psc[0].name : null
+      network  = try(tobool(v.private), false) ? local.serving_network : null
+    } }
+    pools = { for k, v in local.serving_pools : k => {
+      tenant          = v.tenant, machine = v.machine, min_replicas = tonumber(v.min_replicas)
+      max_replicas    = tonumber(v.max_replicas), cpu_target = tonumber(v.cpu_target), image = v.image
+      network         = v.network, managed_by = v.managed_by
+      service_account = v.managed_by == "ci" ? google_service_account.runner[v.tenant].email : null
+      accelerator     = try(v.accelerator, null)
+      resource        = v.managed_by == "terraform" ? google_vertex_ai_deployment_resource_pool.serving[k].id : null
+    } }
   }
   serving_policies = length(try({ for k, v in local.serving_file.policies : k => v }, {})) == 0 ? {} : {
     serving = { pools = local.serving_file.policies }
