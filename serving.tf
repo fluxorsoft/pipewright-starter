@@ -28,7 +28,10 @@ locals {
   serving_network = !local.serving_psc ? null : coalesce(try(local.serving_file.private.network, null),
   local.online_sql ? google_compute_network.online[0].id : "")
   # Endpoint IDs are numbers chosen by the creator (at most 10 digits, no leading zero): stable per use case.
-  serving_ids = { for k, v in local.serving_endpoints : k => tostring(1000000000 + parseint(substr(sha256("${var.environment}/${k}"), 0, 7), 16)) }
+  # A deleted endpoint's ID stays reserved for a while: a rebuild soon after a teardown sets id_salt in serving.yaml
+  # (1.4.2; empty by default, the IDs unchanged).
+  serving_salt = try(tostring(local.serving_file.id_salt), "")
+  serving_ids  = { for k, v in local.serving_endpoints : k => tostring(1000000000 + parseint(substr(sha256("${var.environment}/${k}${local.serving_salt == "" ? "" : "/${local.serving_salt}"}"), 0, 7), 16)) }
 }
 
 resource "terraform_data" "serving_checks" {
