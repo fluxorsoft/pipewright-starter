@@ -73,6 +73,8 @@ network:
 # tenant's export: they get storage.objectViewer on gs://<artifacts>/online-export/<tenant>/ only, and the tenant
 # gets a sync job, so the use case's online_sync schedule publishes the export. Either form: name@... or
 # serviceAccount:name@... Off (empty) by default; reading costs only the export's storage and operations.
+# Behind the lookup gateway, the tenant also needs cloudsql.tenants: its gateway's network and lookup identity
+# come from there.
 export_readers: {}
 #  churn:
 #    - team-store@my-project.iam.gserviceaccount.com
