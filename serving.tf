@@ -18,7 +18,10 @@ locals {
   serving_endpoints = try({ for k, v in local.serving_file.endpoints : k => v }, {})
   serving_private   = { for k, v in local.serving_endpoints : k => v if try(v.private, false) }
   serving_psc       = length(local.serving_private) > 0
-  serving_gateway   = length(local.serving_file) > 0 && length(local.sql_tenants) > 0
+  # The gateway's predict grant: with serving.yaml (private endpoints, pools) as before, or with online_store.yaml
+  # lookup.gateway (1.4.2): a gateway in front of a public endpoint had no grant and every call answered 403
+  # (found writing the book's Chapter 23).
+  serving_gateway   = length(local.sql_tenants) > 0 && (length(local.serving_file) > 0 || try(local.online_file.lookup.gateway, false) == true)
   serving_pools = { for k, v in try({ for k, v in local.serving_file.pools : k => v }, {}) : k => merge({
     min_replicas = 1, max_replicas = 1, cpu_target = 60, network = "standard", managed_by = "ci"
   }, v) }
