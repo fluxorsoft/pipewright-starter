@@ -32,7 +32,10 @@ locals {
   # 1.4.2 (design items 4 and 7): who may read each tenant's Parquet export (a team's own store), granted here on the
   # tenant's export folder only; those tenants also get a sync job, whose schedule then publishes the export.
   export_readers = { for t, v in try(local.online_file.export_readers, {}) : t => [for r in v : trimprefix(r, "serviceAccount:")] }
-  sync_tenants   = toset(concat(tolist(local.sql_tenants), keys(local.export_readers)))
+  # FR-57: tenants with A/B tests get the job too (their scheduled analysis runs in it, as the runner) and a lookup
+  # identity (their gateway, and a router-only gateway for callers that send features).
+  sync_tenants   = toset(concat(tolist(local.sql_tenants), keys(local.export_readers), keys(local.ab_tenants)))
+  lookup_tenants = toset(concat(tolist(local.sql_tenants), keys(local.ab_tenants)))
   sql_name       = "${local.p}-features"
   lookup_cfg     = try(local.online_file.lookup, {})
   # Cloud SQL machine types (docs "Machine series", read 2026-11-07); also checked by pipewright doctor.
@@ -172,7 +175,7 @@ resource "google_sql_user" "online_admin" {
 }
 
 resource "google_service_account" "lookup" {
-  for_each     = local.sql_tenants
+  for_each     = local.lookup_tenants
   account_id   = "${local.p}-pwl-${each.key}"
   display_name = "Pipewright lookup services: ${each.key} (${var.environment})"
 }
@@ -305,14 +308,14 @@ resource "google_storage_bucket_iam_member" "online_admin_manifest" {
 
 # The launcher runs the sync jobs, and creates and updates the lookup services as each tenant's lookup identity.
 resource "google_project_iam_member" "launcher_run_admin" {
-  count   = local.online_sql || length(local.export_readers) > 0 ? 1 : 0
+  count   = local.online_sql || length(local.export_readers) > 0 || local.ab_any ? 1 : 0
   project = var.project_id
   role    = "roles/run.admin"
   member  = "serviceAccount:${google_service_account.launcher.email}"
 }
 
 resource "google_service_account_iam_member" "launcher_acts_as_lookup" {
-  for_each           = local.sql_tenants
+  for_each           = local.lookup_tenants
   service_account_id = google_service_account.lookup[each.key].name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.launcher.email}"
@@ -398,7 +401,7 @@ locals {
   }
   online_tenant_manifest = {
     for t in local.sync_tenants : t => merge(
-      contains(tolist(local.sql_tenants), t) ? { lookup_service_account = google_service_account.lookup[t].email } : {},
+      contains(tolist(local.lookup_tenants), t) ? { lookup_service_account = google_service_account.lookup[t].email } : {},
     local.deployed ? { sync_job = google_cloud_run_v2_job.online_sync[t].id } : {})
   }
 }
@@ -412,7 +415,7 @@ variable "online_store_file" {
 # The launcher hands each scheduled sync its request (the manifest and the released configuration) under
 # online-sync/<tenant>/<usecase>/requests/, as it hands a pipeline run its configuration (found live).
 resource "google_storage_bucket_iam_member" "launcher_online_requests" {
-  count  = length(local.sql_tenants) > 0 || local.online_bq ? 1 : 0
+  count  = length(local.sql_tenants) > 0 || local.online_bq || local.ab_any ? 1 : 0
   bucket = google_storage_bucket.artifacts.name
   role   = "roles/storage.objectCreator"
   member = "serviceAccount:${google_service_account.launcher.email}"

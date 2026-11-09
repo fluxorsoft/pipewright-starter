@@ -55,6 +55,16 @@ variable "tenants" {
         sync           = optional(string, "0 6 * * *")
       }))
     }))
+    # Pipewright FR-57 (ab_tests.tf): A/B tests for the team's use cases. {} turns on the exposure sink into the
+    # team's dataset, the gateway's identity and the scheduled analysis. feed: a Pub/Sub topic for the team's own
+    # tools with the tests' events; feed_exposures: also per-unit lines with a keyed hash of the unit (pseudonymised,
+    # still personal data where the unit is a person: off unless the team needs it); feed_subscribers: who may attach
+    # subscriptions to the feed.
+    ab_test = optional(object({
+      feed             = optional(bool, false)
+      feed_exposures   = optional(bool, false)
+      feed_subscribers = optional(list(string), [])
+    }))
   }))
   default = { demo = {} }
 
@@ -65,6 +75,10 @@ variable "tenants" {
   validation {
     condition     = alltrue(flatten([for v in values(var.tenants) : [for d in v.feature_datasets : can(regex("^[a-z][a-z0-9-]{4,61}[a-z0-9][.][A-Za-z0-9_]+$", d))]]))
     error_message = "feature_datasets: project.dataset, e.g. my-project.features."
+  }
+  validation {
+    condition     = alltrue([for v in values(var.tenants) : v.ab_test == null ? true : (!v.ab_test.feed_exposures || v.ab_test.feed)])
+    error_message = "ab_test.feed_exposures needs ab_test.feed (the exposures go to the feed's topic)."
   }
   validation {
     condition     = alltrue([for v in values(var.tenants) : v.landing_prefix == null || startswith(coalesce(v.landing_prefix, "x"), "incoming/")])

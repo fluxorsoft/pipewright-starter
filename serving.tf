@@ -21,7 +21,7 @@ locals {
   # The gateway's predict grant: with serving.yaml (private endpoints, pools) as before, or with online_store.yaml
   # lookup.gateway (1.4.2): a gateway in front of a public endpoint had no grant and every call answered 403
   # (found writing the book's Chapter 23).
-  serving_gateway   = length(local.sql_tenants) > 0 && (length(local.serving_file) > 0 || try(local.online_file.lookup.gateway, false) == true)
+  serving_gateway = length(local.sql_tenants) > 0 && (length(local.serving_file) > 0 || try(local.online_file.lookup.gateway, false) == true)
   serving_pools = { for k, v in try({ for k, v in local.serving_file.pools : k => v }, {}) : k => merge({
     min_replicas = 1, max_replicas = 1, cpu_target = 60, network = "standard", managed_by = "ci"
   }, v) }
@@ -93,7 +93,7 @@ resource "google_vertex_ai_endpoint" "serving" {
 # checks aiplatform.endpoints.predict on the project, not on the endpoint (an endpoint-level grant is refused), so the
 # grant is project-wide; a custom role keeps it to that one permission.
 resource "google_project_iam_custom_role" "gateway_predict" {
-  count       = local.serving_gateway ? 1 : 0
+  count       = local.serving_gateway || local.ab_any ? 1 : 0
   project     = var.project_id
   role_id     = replace("${local.p}_gateway_predict", "-", "_")
   title       = "Pipewright lookup gateway: predict"
@@ -102,7 +102,7 @@ resource "google_project_iam_custom_role" "gateway_predict" {
 }
 
 resource "google_project_iam_member" "gateway_predict" {
-  for_each = local.serving_gateway ? toset(tolist(local.sql_tenants)) : toset([])
+  for_each = toset(concat(local.serving_gateway ? tolist(local.sql_tenants) : [], keys(local.ab_tenants)))
   project  = var.project_id
   role     = google_project_iam_custom_role.gateway_predict[0].id
   member   = "serviceAccount:${google_service_account.lookup[each.value].email}"

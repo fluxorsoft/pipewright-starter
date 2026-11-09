@@ -23,7 +23,9 @@ locals {
       }, length(google_cloud_run_v2_job.renewer) == 0 ? {} : {
       renewer_job             = google_cloud_run_v2_job.renewer[0].id
       renewer_service_account = google_service_account.renewer[0].email
-    })
+      }, local.ab_any && var.launcher_image != null ? {
+      image = var.launcher_image # FR-57: an A/B router-only gateway runs it where no online store names an image
+    } : {})
     policies = merge(
       { deploy_model = var.policies.deploy_model, promote_model = var.policies.promote_model },
       var.policies.retraining == null ? {} : {
@@ -39,7 +41,8 @@ locals {
             features = { for k, v in var.policies.integrity.features : k => v if v != null }
         })
       },
-      local.serving_policies # Pipewright 1.4.2 (FR-105): serving.yaml policies
+      local.serving_policies, # Pipewright 1.4.2 (FR-105): serving.yaml policies
+      local.ab_policies       # FR-57: whether a tenant's feed may carry exposures
     )
     approver_groups = {
       for g, v in var.approver_groups : g => {
@@ -56,6 +59,7 @@ locals {
         online_serving         = v.online_serving
         }, v.agent_identity ? { agent_service_account = google_service_account.agent[t].email } : {},
         v.loop_production_project == null ? {} : { loop_production_project = v.loop_production_project },
+        lookup(local.ab_tenant_manifest, t, {}),
         v.online_features == null && length(v.feature_datasets) == 0 && !contains(keys(local.online_tenant_manifest), t) ? {} : {
           features = merge(
             length(v.feature_datasets) == 0 ? {} : { datasets = v.feature_datasets },

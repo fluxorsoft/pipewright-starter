@@ -25,6 +25,7 @@ top of the same building blocks.
 | Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
 | Optional: other online stores | `online_store.yaml` (copy `online_store.yaml.example`): Cloud SQL for PostgreSQL with a private network, sync jobs and lookup identities, and/or a BigQuery BI Engine reservation (`online_stores.tf`, FR-104) |
 | Optional: serving | `serving.yaml` (copy `serving.yaml.example`): the use cases' endpoints in Terraform, public or private (Private Service Connect, private DNS), and shared pools for co-hosting (`serving.tf`, 1.4.2) |
+| Optional: A/B tests | `tenants.<team>.ab_test = {}`: the exposure log sink into the team's dataset, the gateway's identity, the scheduled analysis in the team's job; `feed = true` adds a Pub/Sub topic for the team's own tools (`ab_tests.tf`, Pipewright FR-57) |
 | Optional: AI build assistance | `tenants.<team>.agent_identity = true`: an agent service account per team with metadata-only roles, impersonated by the team's members, named in the manifest for `pipewright mcp` (`ai.tf`, Pipewright 1.3.0); `tenants.<team>.feature_datasets`: the feature tables' datasets the team may read (read-only for the runner, schemas only for the agent) |
 
 ## Before you start
@@ -194,6 +195,28 @@ Pipewright's [docs/SERVING.md](https://github.com/fluxorsoft/pipewright/blob/mai
 
 The full guide (costs, performance, the sync, building your own store from the Parquet export) is Pipewright's
 [docs/ONLINE_STORES.md](https://github.com/fluxorsoft/pipewright/blob/main/docs/ONLINE_STORES.md).
+
+## A/B tests
+
+Give the team `ab_test` in `terraform.tfvars` to test a candidate model against the champion on live traffic or in
+batch scoring (`pipewright ab`):
+
+```hcl
+tenants = {
+  churn = {
+    ab_test = {}                        # the exposure sink, the gateway's identity, the scheduled analysis
+    # ab_test = { feed = true, feed_subscribers = ["serviceAccount:tools@example.com"] }
+  }
+}
+```
+
+The gateway writes an exposure line per unit and call; a log sink copies them into the team's dataset (table
+`pipewright_ab_exposure`) and the analysis reads them there. `feed = true` gives the team a topic with the tests'
+events for its own tools; `feed_exposures = true` (with `feed`) also copies exposure lines with a keyed hash of the
+unit, never the unit (the key is in Secret Manager, read only by the gateway). Where the use case's endpoint is in
+`serving.yaml`, add `<usecase>-ab` beside it (same tenant and privacy): the treatment is deployed there. Log routing
+is free; the exposures cost BigQuery storage (cents a month per million lines). The guide is Pipewright's
+[docs/AB_TESTING.md](https://github.com/fluxorsoft/pipewright/blob/main/docs/AB_TESTING.md).
 
 ## Ray steps
 
