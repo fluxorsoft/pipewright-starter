@@ -299,11 +299,14 @@ resource "google_service_account_iam_member" "launcher_acts_as_lookup" {
   member             = "serviceAccount:${google_service_account.launcher.email}"
 }
 
-resource "google_service_account_iam_member" "launcher_acts_as_runner_for_sync" {
-  for_each           = local.sql_tenants
-  service_account_id = google_service_account.runner[each.key].name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.launcher.email}"
+# The launcher acting as each runner for the sync is identities.tf's launcher_acts_as_runner (every tenant). A second,
+# identical binding here made taking the online store down delete the base one too, and with it the launcher's right to
+# submit any run (found tearing down the book's Chapter 24). Forgotten, never destroyed:
+removed {
+  from = google_service_account_iam_member.launcher_acts_as_runner_for_sync
+  lifecycle {
+    destroy = false
+  }
 }
 
 # ------------------------------------------------------------------------------------------ BigQuery --
