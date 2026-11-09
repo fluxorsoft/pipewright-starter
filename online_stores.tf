@@ -29,8 +29,12 @@ locals {
   }, local.online_file.cloudsql) : null
   sql_disk    = local.online_sql ? merge({ type = "ssd", size_gb = 10, autoresize = true, autoresize_limit_gb = 0 }, try(local.online_file.cloudsql.disk, {})) : null
   sql_tenants = local.online_sql ? toset(local.sql_cfg.tenants) : toset([])
-  sql_name    = "${local.p}-features"
-  lookup_cfg  = try(local.online_file.lookup, {})
+  # 1.4.2 (design items 4 and 7): who may read each tenant's Parquet export (a team's own store), granted here on the
+  # tenant's export folder only; those tenants also get a sync job, whose schedule then publishes the export.
+  export_readers = { for t, v in try(local.online_file.export_readers, {}) : t => [for r in v : trimprefix(r, "serviceAccount:")] }
+  sync_tenants   = toset(concat(tolist(local.sql_tenants), keys(local.export_readers)))
+  sql_name       = "${local.p}-features"
+  lookup_cfg     = try(local.online_file.lookup, {})
   # Cloud SQL machine types (docs "Machine series", read 2026-11-07); also checked by pipewright doctor.
   sql_tier_ok = !local.online_sql ? true : (
     contains(["db-f1-micro", "db-g1-small"], local.sql_cfg.tier) ||
@@ -205,7 +209,7 @@ resource "google_project_iam_member" "online_sql" {
 
 # The sync writes its staging extract and records under the tenant's own prefixes (also with isolate_tenant_artifacts).
 resource "google_storage_bucket_iam_member" "runner_online" {
-  for_each = var.isolate_tenant_artifacts ? local.sql_tenants : toset([])
+  for_each = var.isolate_tenant_artifacts ? local.sync_tenants : toset([])
   bucket   = google_storage_bucket.artifacts.name
   role     = "roles/storage.objectAdmin"
   member   = local.runner_members[each.key]
@@ -218,7 +222,7 @@ resource "google_storage_bucket_iam_member" "runner_online" {
 # ------------------------------------------------------------------------------------------ jobs --
 
 resource "google_cloud_run_v2_job" "online_sync" {
-  for_each = local.deployed ? local.sql_tenants : toset([])
+  for_each = local.deployed ? local.sync_tenants : toset([])
   name     = "${local.p}-sync-${each.key}"
   location = var.region
   labels   = merge(local.labels, { "pipewright-tenant" = each.key })
@@ -237,16 +241,31 @@ resource "google_cloud_run_v2_job" "online_sync" {
           limits = { cpu = "2", memory = "4Gi" } # the generation's files are read in memory
         }
       }
-      vpc_access {
-        network_interfaces {
-          network    = google_compute_network.online[0].id
-          subnetwork = google_compute_subnetwork.online[0].id
+      dynamic "vpc_access" { # Cloud SQL tenants load the database inside the network; an export needs none
+        for_each = contains(tolist(local.sql_tenants), each.key) ? [1] : []
+        content {
+          network_interfaces {
+            network    = google_compute_network.online[0].id
+            subnetwork = google_compute_subnetwork.online[0].id
+          }
+          egress = "PRIVATE_RANGES_ONLY"
         }
-        egress = "PRIVATE_RANGES_ONLY"
       }
     }
   }
   deletion_protection = false
+}
+
+# Each export reader reads its tenant's export folder only (listing included, by prefix), never the rest of the bucket.
+resource "google_storage_bucket_iam_member" "export_readers" {
+  for_each = merge([for t, rs in local.export_readers : { for r in rs : "${t}|${r}" => { tenant = t, reader = r } }]...)
+  bucket   = google_storage_bucket.artifacts.name
+  role     = "roles/storage.objectViewer"
+  member   = "serviceAccount:${each.value.reader}"
+  condition {
+    title      = "export-${each.value.tenant}"
+    expression = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/online-export/${each.value.tenant}/\") || api.getAttribute(\"storage.googleapis.com/objectListPrefix\", \"\").startsWith(\"online-export/${each.value.tenant}/\")"
+  }
 }
 
 resource "google_cloud_run_v2_job" "online_setup" {
@@ -286,7 +305,7 @@ resource "google_storage_bucket_iam_member" "online_admin_manifest" {
 
 # The launcher runs the sync jobs, and creates and updates the lookup services as each tenant's lookup identity.
 resource "google_project_iam_member" "launcher_run_admin" {
-  count   = local.online_sql ? 1 : 0
+  count   = local.online_sql || length(local.export_readers) > 0 ? 1 : 0
   project = var.project_id
   role    = "roles/run.admin"
   member  = "serviceAccount:${google_service_account.launcher.email}"
@@ -348,6 +367,7 @@ locals {
   online_manifest = length(local.online_file) == 0 ? {} : {
     online_store = merge(
       { types = local.online_types },
+      length(local.export_readers) == 0 ? {} : { export_readers = local.export_readers },
       local.online_bq ? { bigquery = { bi_engine_gib = local.online_file.bigquery.bi_engine_gib } } : {},
       local.online_sql ? {
         cloudsql = {
@@ -366,15 +386,19 @@ locals {
             # Agent Platform's public endpoints call from Google's network, outside the VPC: internal ingress answers
             # them 404 (found live). The service stays IAM-only (the endpoint's identity is its one invoker); private
             # endpoints over Private Service Connect (FR-92) will allow internal ingress.
-          ingress = try(local.lookup_cfg.ingress, "INGRESS_TRAFFIC_ALL") },
+            ingress = try(local.lookup_cfg.ingress, "INGRESS_TRAFFIC_ALL"),
+            # 1.4.2 (design item 6): ALL_TRAFFIC sends the lookup services' traffic through the network, so a team's own
+            # store on Cloud Run with internal ingress can be reached (PRIVATE_RANGES_ONLY reaches its public address,
+            # which internal ingress refuses)
+          egress = try(local.lookup_cfg.egress, "PRIVATE_RANGES_ONLY") },
           var.launcher_image == null ? {} : { image = var.launcher_image },
           try(local.lookup_cfg.defaults, null) == null ? {} : { defaults = local.lookup_cfg.defaults },
         try(local.lookup_cfg.limits, null) == null ? {} : { limits = local.lookup_cfg.limits })
     } : {})
   }
   online_tenant_manifest = {
-    for t in local.sql_tenants : t => merge(
-      { lookup_service_account = google_service_account.lookup[t].email },
+    for t in local.sync_tenants : t => merge(
+      contains(tolist(local.sql_tenants), t) ? { lookup_service_account = google_service_account.lookup[t].email } : {},
     local.deployed ? { sync_job = google_cloud_run_v2_job.online_sync[t].id } : {})
   }
 }

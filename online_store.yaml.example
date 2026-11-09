@@ -50,6 +50,10 @@ lookup:
   # stay IAM-only (only the endpoint's identity may call). INGRESS_TRAFFIC_INTERNAL_ONLY when only KServe or callers
   # inside the network use them (private endpoints over Private Service Connect: FR-92).
   ingress: INGRESS_TRAFFIC_ALL
+  # PRIVATE_RANGES_ONLY sends only private addresses through the network. ALL_TRAFFIC when the gateway calls a team's
+  # own store on Cloud Run with internal ingress (type http): Cloud Run then sees the call come from inside. No cost of
+  # its own; the network's egress is billed as usual.
+  egress: PRIVATE_RANGES_ONLY
   defaults:
     min_instances: 0           # warm instances: about $14 a month each (1 vCPU, 512Mi, idle); best effort
     cpu_boost: true            # shorter cold starts, about $0.0005 a start
@@ -64,3 +68,11 @@ lookup:
 # The small network Cloud SQL's private IP needs (Private Services Access).
 network:
   subnet: 10.60.0.0/24
+
+# A team's own store (type http) is fed from the Parquet export (online_store.export, FR-119). List who reads each
+# tenant's export: they get storage.objectViewer on gs://<artifacts>/online-export/<tenant>/ only, and the tenant
+# gets a sync job, so the use case's online_sync schedule publishes the export. Either form: name@... or
+# serviceAccount:name@... Off (empty) by default; reading costs only the export's storage and operations.
+export_readers: {}
+#  churn:
+#    - team-store@my-project.iam.gserviceaccount.com
