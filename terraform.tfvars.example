@@ -31,6 +31,9 @@ policies = {
   # Pipewright 1.4.1, inside integrity (defaults shown): pin = "on", watch = "off", watch_every = "1h",
   # lock.renew = true, lock.rollback_days = <lock.days>, until = null, reason = null,
   # features = { check = "off", built_tables = false, record_reads = false, fingerprint_rows = false, snapshot_days = 0 }
+  # Pipewright FR-57: the rules for A/B tests here (unset: allowed, no limits, overlap allow).
+  # ab_test = { allowed = true, required_approvers = ["ml-leads"], max_treatment_bp = 2000, min_days = 14,
+  #             overlap = "warn", required_guardrails = ["complaints"] }
 }
 
 # Pipewright 1.4.1 (integrity.tf), defaults shown:

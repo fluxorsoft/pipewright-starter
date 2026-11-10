@@ -12,8 +12,8 @@
  *   the gateway the tenant's lookup identity (the router-only gateway of a use case whose callers send features runs as
  *               it too): writes the lines, may predict, reads the feed key.
  *   analysis    the scheduled analysis runs as the tenant's runner in the tenant's job (the sync job).
- *   launcher    reads the gateway's lines (logging.viewer) and the arms' endpoints (monitoring.viewer), and keeps the
- *               test records (ab-tests/).
+ *   launcher    reads the gateway's lines (logging.viewer, granted for every environment: launcher_logs) and the arms'
+ *               endpoints (monitoring.viewer), and keeps the test records (ab-tests/).
  *
  * Arm endpoints: where endpoints are Terraform's (serving.yaml), add `<usecase>-ab` beside `<usecase>`, with the same
  * tenant and privacy; Pipewright deploys the treatment there.
@@ -35,7 +35,11 @@ locals {
       v.feed_exposures ? { key_secret = google_secret_manager_secret.ab_feed_key[t].id } : {})
     }
   }
-  ab_policies = local.ab_any ? { ab_test = { feed_exposures = length(local.ab_feed_expose) > 0 } } : {}
+  # The platform's A/B rules (policies.ab_test), unset keys left out; an object of mixed types, so no conditional
+  ab_rules = try({ for k, v in var.policies.ab_test : k => v if v != null }, {})
+  ab_policies = { for k, v in {
+    ab_test = merge(local.ab_rules, local.ab_any ? { feed_exposures = length(local.ab_feed_expose) > 0 } : {})
+  } : k => v if local.ab_any || length(local.ab_rules) > 0 }
 }
 
 # ------------------------------------------------------------------------------------------ exposures --
@@ -157,10 +161,23 @@ resource "google_project_iam_member" "ab_gateway_logs" {
 }
 
 resource "google_project_iam_member" "launcher_ab" {
-  for_each = local.ab_any ? toset(["roles/logging.viewer", "roles/monitoring.viewer"]) : toset([])
+  for_each = local.ab_any ? toset(["roles/monitoring.viewer"]) : toset([])
   project  = var.project_id
   role     = each.value
   member   = "serviceAccount:${google_service_account.launcher.email}"
+}
+
+# The launcher reads the project's logs for every environment now (Pipewright FR-124): its tick checks that each
+# approved training run registered its model, from the runs' events. It was granted only with A/B tests before.
+resource "google_project_iam_member" "launcher_logs" {
+  project = var.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.launcher.email}"
+}
+
+moved {
+  from = google_project_iam_member.launcher_ab["roles/logging.viewer"]
+  to   = google_project_iam_member.launcher_logs
 }
 
 resource "google_storage_bucket_iam_member" "launcher_ab_tests" {

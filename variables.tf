@@ -167,12 +167,28 @@ variable "policies" {
         snapshot_days    = optional(number)
       }))
     }))
+    # Pipewright FR-57 (found in its QA round, FR-125: the starter had no way to set them): the platform's rules for
+    # A/B tests. Unset is Pipewright's defaults (allowed, no limits, overlap allow). feed_exposures comes from the
+    # tenants' ab_test.feed_exposures, not from here.
+    ab_test = optional(object({
+      allowed             = optional(bool)
+      required_approvers  = optional(list(string))
+      max_treatment_bp    = optional(number)
+      min_days            = optional(number)
+      overlap             = optional(string)
+      required_guardrails = optional(list(string))
+    }))
   })
   default = {}
 
   validation {
     condition     = var.policies.integrity == null ? true : (try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.pin, "on")), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.watch, "off")), true) && try(can(regex("^[0-9]+[hd]$", coalesce(var.policies.integrity.watch_every, "1h"))), true) && try(can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", coalesce(var.policies.integrity.until, "2000-01-01"))), true))
     error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked; pin and watch on or off; watch_every like 1h or 1d; until a date (YYYY-MM-DD)."
+  }
+
+  validation {
+    condition     = var.policies.ab_test == null ? true : (try(contains(["allow", "warn", "refuse"], coalesce(var.policies.ab_test.overlap, "allow")), true) && try(var.policies.ab_test.max_treatment_bp == null || (var.policies.ab_test.max_treatment_bp >= 1 && var.policies.ab_test.max_treatment_bp <= 9999), true) && try(var.policies.ab_test.min_days == null || var.policies.ab_test.min_days >= 1, true))
+    error_message = "policies.ab_test: overlap allow, warn or refuse; max_treatment_bp from 1 to 9999; min_days at least 1."
   }
 }
 
