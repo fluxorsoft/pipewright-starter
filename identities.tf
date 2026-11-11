@@ -91,9 +91,11 @@ resource "google_service_account_iam_member" "launcher_acts_as_runner" {
 # ---------------------------------------------------------------- runners --
 
 resource "google_project_iam_member" "runner" {
+  # Pipewright 1.4.3 (FR-100): with policies.registration launcher, the runner role without registry writes
+  # (registration.tf). The key stays "roles/aiplatform.user" so turning it on replaces the grant in place.
   for_each = { for p in setproduct(keys(local.tenants), [
     "roles/aiplatform.user", "roles/bigquery.jobUser", "roles/logging.logWriter", "roles/monitoring.metricWriter",
-  ]) : "${p[0]}|${p[1]}" => { tenant = p[0], role = p[1] } }
+  ]) : "${p[0]}|${p[1]}" => { tenant = p[0], role = p[1] == "roles/aiplatform.user" ? local.runner_role : p[1] } }
 
   project = var.project_id
   role    = each.value.role

@@ -41,8 +41,9 @@ locals {
             features = { for k, v in var.policies.integrity.features : k => v if v != null }
         })
       },
-      local.serving_policies, # Pipewright 1.4.2 (FR-105): serving.yaml policies
-      local.ab_policies       # FR-57: whether a tenant's feed may carry exposures
+      local.serving_policies,                                          # Pipewright 1.4.2 (FR-105): serving.yaml policies
+      local.ab_policies,                                               # FR-57: whether a tenant's feed may carry exposures
+      local.registration_launcher ? { registration = "launcher" } : {} # 1.4.3 (FR-100)
     )
     approver_groups = {
       for g, v in var.approver_groups : g => {

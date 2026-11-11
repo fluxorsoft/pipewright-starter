@@ -170,6 +170,9 @@ variable "policies" {
     # Pipewright FR-57 (found in its QA round, FR-125: the starter had no way to set them): the platform's rules for
     # A/B tests. Unset is Pipewright's defaults (allowed, no limits, overlap allow). feed_exposures comes from the
     # tenants' ab_test.feed_exposures, not from here.
+    # Pipewright 1.4.3 (FR-100): who writes the model registry. runner (default, as before) or launcher: runners
+    # cannot write it; the launcher registers each version after its checks (registration.tf).
+    registration = optional(string)
     ab_test = optional(object({
       allowed             = optional(bool)
       required_approvers  = optional(list(string))
@@ -184,6 +187,11 @@ variable "policies" {
   validation {
     condition     = var.policies.integrity == null ? true : (try(contains(["refuse", "warn"], var.policies.integrity.mode), true) && try(contains(["off", "warn", "refuse"], var.policies.integrity.inference), true) && try(contains(["unlocked", "locked"], var.policies.integrity.lock.mode), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.pin, "on")), true) && try(contains(["on", "off"], coalesce(var.policies.integrity.watch, "off")), true) && try(can(regex("^[0-9]+[hd]$", coalesce(var.policies.integrity.watch_every, "1h"))), true) && try(can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", coalesce(var.policies.integrity.until, "2000-01-01"))), true))
     error_message = "policies.integrity: mode refuse or warn; inference off, warn or refuse; lock.mode unlocked or locked; pin and watch on or off; watch_every like 1h or 1d; until a date (YYYY-MM-DD)."
+  }
+
+  validation {
+    condition     = contains(["runner", "launcher"], coalesce(var.policies.registration, "runner"))
+    error_message = "policies.registration: runner or launcher."
   }
 
   validation {
