@@ -160,8 +160,10 @@ resource "google_project_iam_member" "ab_gateway_logs" {
   member   = "serviceAccount:${google_service_account.lookup[each.key].email}"
 }
 
+# Also with serving_health (FR-98, GA QA): capture coverage reads the endpoints' served counts. One resource for the
+# role, so turning A/B off never removes the binding health still needs.
 resource "google_project_iam_member" "launcher_ab" {
-  for_each = local.ab_any ? toset(["roles/monitoring.viewer"]) : toset([])
+  for_each = local.ab_any || var.serving_health ? toset(["roles/monitoring.viewer"]) : toset([])
   project  = var.project_id
   role     = each.value
   member   = "serviceAccount:${google_service_account.launcher.email}"
