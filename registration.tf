@@ -26,6 +26,15 @@ data "google_iam_role" "aiplatform_user" {
   name  = "roles/aiplatform.user"
 }
 
+# Custom roles take only the permissions that support them (aiplatform.user also holds resourcemanager.projects.list,
+# which a custom role refuses: found in the 1.4.3 battle test).
+data "google_iam_testable_permissions" "project" {
+  count                = local.registration_launcher ? 1 : 0
+  full_resource_name   = "//cloudresourcemanager.googleapis.com/projects/${var.project_id}"
+  stages               = ["GA", "BETA", "ALPHA", "DEPRECATED"]
+  custom_support_level = "SUPPORTED"
+}
+
 resource "google_project_iam_custom_role" "runner" {
   count = local.registration_launcher ? 1 : 0
 
@@ -33,7 +42,8 @@ resource "google_project_iam_custom_role" "runner" {
   role_id     = "${replace(local.p, "-", "_")}_runner"
   title       = "Pipewright runner (${var.environment}): Agent Platform user without registry writes"
   description = "roles/aiplatform.user without aiplatform.models.upload, update and delete (Pipewright FR-100). Managed by Terraform."
-  permissions = sort(setsubtract(data.google_iam_role.aiplatform_user[0].included_permissions, [
+  permissions = sort(setsubtract(setintersection(data.google_iam_role.aiplatform_user[0].included_permissions,
+    [for x in data.google_iam_testable_permissions.project[0].permissions : x.name]), [
     "aiplatform.models.upload", "aiplatform.models.update", "aiplatform.models.delete",
   ]))
 }
@@ -62,7 +72,7 @@ resource "google_project_iam_custom_role" "launcher_registrar" {
   role_id     = "${replace(local.p, "-", "_")}_model_registrar"
   title       = "Pipewright launcher (${var.environment}): register BigQuery ML models"
   description = "Read and update BigQuery ML model metadata, to register a version in the Model Registry (Pipewright FR-100). Managed by Terraform."
-  permissions = ["bigquery.models.get", "bigquery.models.getData", "bigquery.models.getMetadata", "bigquery.models.updateMetadata"]
+  permissions = ["bigquery.models.getData", "bigquery.models.getMetadata", "bigquery.models.updateMetadata"]
 }
 
 resource "google_bigquery_dataset_iam_member" "launcher_registrar" {
@@ -72,6 +82,8 @@ resource "google_bigquery_dataset_iam_member" "launcher_registrar" {
   dataset_id = google_bigquery_dataset.tenant[each.key].dataset_id
   role       = google_project_iam_custom_role.launcher_registrar[0].name
   member     = "serviceAccount:${google_service_account.launcher.email}"
+
+  depends_on = [time_sleep.registrar_role]
 }
 
 resource "google_project_iam_member" "launcher_registration_jobs" {
@@ -80,4 +92,12 @@ resource "google_project_iam_member" "launcher_registration_jobs" {
   project = var.project_id
   role    = "roles/bigquery.jobUser"
   member  = "serviceAccount:${google_service_account.launcher.email}"
+}
+
+# A new custom role reaches BigQuery's dataset IAM a little later ("does not exist in the resource's hierarchy", found
+# in the 1.4.3 battle test): wait before granting it.
+resource "time_sleep" "registrar_role" {
+  count           = local.registration_launcher ? 1 : 0
+  create_duration = "60s"
+  depends_on      = [google_project_iam_custom_role.launcher_registrar]
 }
