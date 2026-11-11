@@ -77,10 +77,12 @@ resource "google_cloud_run_v2_service_iam_member" "invoker" {
 }
 
 locals {
-  push = local.deployed ? {
+  push = local.deployed ? merge({
     landing      = { topic = google_pubsub_topic.this["landing"].id, path = "/pubsub" }
     run-requests = { topic = google_pubsub_topic.this["run-requests"].id, path = "/pubsub/run" }
-  } : {}
+    }, var.serving_health ? {
+    incidents = { topic = google_pubsub_topic.incidents[0].id, path = "/incidents" } # 1.4.3 (FR-98)
+  } : {}) : {}
 }
 
 resource "google_pubsub_subscription" "push" {

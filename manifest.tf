@@ -76,6 +76,7 @@ locals {
       # Pipewright 1.4.1 (FR-102). Written whatever their value, null when off: a conditional object would turn the
       # number into a string (found live: the manifest failed validation).
       {
+        incidents_channel    = var.serving_health ? google_monitoring_notification_channel.incidents[0].id : null # FR-98
         data_write_logs      = local.data_write_on ? true : null
         audit_log_bucket     = local.audit_on ? "projects/${var.project_id}/locations/global/buckets/${local.p}-audit" : null
         audit_retention_days = local.audit_on ? var.audit_retention_days : null
