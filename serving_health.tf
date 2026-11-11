@@ -50,3 +50,22 @@ resource "google_pubsub_topic_iam_member" "incidents_publisher" {
 
   depends_on = [google_monitoring_notification_channel.incidents]
 }
+
+# Capture coverage (FR-98, found in the GA QA): the launcher's hourly tick counts what capture recorded in the last hour
+# (<usecase>_online_log) against what the endpoint served. It could read only the tables' metadata, so the count failed
+# and coverage never ran. Read access is limited by an IAM condition to the capture tables: no other table of the
+# tenant's dataset. Free (IAM); the count is one small query an hour per use case with capture on.
+resource "google_bigquery_dataset_iam_member" "launcher_capture_reader" {
+  for_each = var.serving_health ? local.tenants : {}
+
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.tenant[each.key].dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.launcher.email}"
+
+  condition {
+    title       = "capture-tables-only"
+    description = "Pipewright capture coverage: the <usecase>_online_log tables only"
+    expression  = "resource.name.endsWith(\"_online_log\")"
+  }
+}
