@@ -82,12 +82,14 @@ resource "google_storage_bucket_iam_member" "agent_manifest" {
   member = local.agent_members[each.key]
   condition {
     title       = "pipewright-agent-${each.key}"
-    description = "The manifest, release contracts, A/B test records and decision cases only"
+    description = "The manifest, release contracts, A/B tests, decision cases, lineage and evaluation records only"
     expression = join(" || ", ["resource.type == \"storage.googleapis.com/Bucket\"",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipewright/\")",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/contracts/\")",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/ab-tests/\")",
-    "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/cases/\")"])
+      "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/cases/\")",
+      # a run's lineage and evaluation records (names, hashes, metrics), never model files: the lineage tool reads them
+    "(resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipeline-root/\") && (resource.name.endsWith(\"/lineage.json\") || resource.name.endsWith(\"/evaluation.json\")))"])
   }
 }
 
