@@ -230,8 +230,17 @@ locals {
       resource        = v.managed_by == "terraform" ? google_vertex_ai_deployment_resource_pool.serving[k].id : null
     } }
   }
-  serving_policies = length(try({ for k, v in local.serving_file.policies : k => v }, {})) == 0 ? {} : {
-    serving = { pools = local.serving_file.policies }
+  # 1.4.3 (found in the GA QA): the FR-98 rules too (capture limits, health required, scale to zero), which the
+  # starter could not set; Enterprise's platform file already had them. Off unless serving_policy is set.
+  serving_rules = var.serving_policy == null ? {} : merge(
+    var.serving_policy.capture == null ? {} : { capture = { for k, v in var.serving_policy.capture : k => v if v != null } },
+    var.serving_policy.health_required == null ? {} : { health = { required = var.serving_policy.health_required } },
+  var.serving_policy.scale_to_zero == null ? {} : { scale_to_zero = var.serving_policy.scale_to_zero })
+  pool_rules = length(try({ for k, v in local.serving_file.policies : k => v }, {})) == 0 ? {} : {
+    pools = local.serving_file.policies
+  }
+  serving_policies = length(merge(local.pool_rules, local.serving_rules)) == 0 ? {} : {
+    serving = merge(local.pool_rules, local.serving_rules)
   }
 }
 

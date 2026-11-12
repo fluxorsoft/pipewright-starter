@@ -44,6 +44,14 @@ policies = {
 # audit_log_bucket_locked = true   # its retention cannot be shortened
 # platform_alert_emails   = []     # the environment's integrity alerts
 
+# Pipewright 1.4.3 (serving_health.tf), off by default:
+# serving_health = true            # the incident channel and topic for use cases' monitoring.health
+# serving_policy = {               # rules every serving use case is checked against
+#   capture         = { allowed = true, max_sample_rate = 0.1, retention_days = 30 }
+#   health_required = true         # every use case that serves has monitoring.health on
+#   scale_to_zero   = "refused"    # Agent Platform scale to zero (Preview) drops calls while it scales up
+# }
+
 # Pipewright phase 6: each team's runner writes only under its own pipeline root (recommended for shared projects).
 # isolate_tenant_artifacts = true
 

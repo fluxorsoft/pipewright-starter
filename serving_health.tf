@@ -15,6 +15,24 @@ variable "serving_health" {
   default     = false
 }
 
+variable "serving_policy" {
+  description = "Pipewright 1.4.3 (FR-98), the platform's serving rules every use case is checked against (manifest policies.serving): capture {allowed, max_sample_rate, retention_days}, health_required (every serving use case has monitoring.health on), scale_to_zero (allowed or refused: refused stops any use case setting model.serving.scale_to_zero, an Agent Platform Preview that drops calls while it scales up). Null: no rules, as before. Cost: none."
+  type = object({
+    capture = optional(object({
+      allowed         = optional(bool)
+      max_sample_rate = optional(number)
+      retention_days  = optional(number)
+    }))
+    health_required = optional(bool)
+    scale_to_zero   = optional(string)
+  })
+  default = null
+  validation {
+    condition     = var.serving_policy == null || try(contains(["allowed", "refused"], var.serving_policy.scale_to_zero), true) || try(var.serving_policy.scale_to_zero == null, false)
+    error_message = "serving_policy.scale_to_zero is allowed or refused."
+  }
+}
+
 resource "google_pubsub_topic" "incidents" {
   count = var.serving_health ? 1 : 0
 
