@@ -75,6 +75,21 @@ resource "google_vertex_ai_endpoint" "serving" {
   region       = var.region
   labels       = merge(local.labels, { "pipewright-usecase" = each.key, "pipewright-tenant" = each.value.tenant })
 
+  # 1.4.3 (FR-98, GA QA): capture on an endpoint Terraform makes. Agent Platform takes request-response logging on a
+  # private (PSC) endpoint only when the endpoint is created, so it is set here, from the platform's serving.yaml
+  # (endpoints.<use case>.capture.sample_rate), into the tenant's <use case>_online_log; changing it recreates the
+  # endpoint (undeploy first). BigQuery storage and streaming at list prices (capture's own costs, SERVING.md).
+  dynamic "predict_request_response_logging_config" {
+    for_each = try(each.value.capture.sample_rate, null) != null ? [1] : []
+    content {
+      enabled       = true
+      sampling_rate = tonumber(each.value.capture.sample_rate)
+      bigquery_destination {
+        output_uri = "bq://${var.project_id}.${local.tenants[each.value.tenant].dataset}.${replace(lower(each.key), "/[^a-z0-9_]/", "_")}_online_log"
+      }
+    }
+  }
+
   dynamic "private_service_connect_config" {
     for_each = try(each.value.private, false) ? [1] : []
     content {

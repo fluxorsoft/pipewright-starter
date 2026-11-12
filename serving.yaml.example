@@ -13,6 +13,10 @@ endpoints: {}
 #                       # month (an endpoint is $0.01 an hour) plus $0.004 to $0.01 per GiB processed. Its callers
 #                       # (or the lookup gateway) must be inside the network; Agent Platform cannot call into it.
 #    callers: []        # serviceAccount:/group:/user: members allowed to predict on this endpoint
+#    capture:           # 1.4.3: the use case's model.serving.capture on this endpoint. A private endpoint takes
+#      sample_rate: 0.05 # request-response logging only when it is created, so Terraform sets it (into the tenant's
+#                       # <use case>_online_log); changing it recreates the endpoint: undeploy first. Keep it equal
+#                       # to the use case's sample_rate (deploy-model says when they differ).
 #  churn-ab:            # A/B tests (FR-57): the treatment's endpoint, `<usecase>-ab` beside the use case's, with the
 #    tenant: churn      # same tenant and privacy. Pipewright deploys the treatment there while a test runs; the
 #    private: false     # endpoint itself costs nothing when empty (the machines are the treatment's, or a pool's).
