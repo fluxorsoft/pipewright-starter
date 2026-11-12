@@ -34,6 +34,9 @@ policies = {
   # Pipewright FR-57: the rules for A/B tests here (unset: allowed, no limits, overlap allow).
   # ab_test = { allowed = true, required_approvers = ["ml-leads"], max_treatment_bp = 2000, min_days = 14,
   #             overlap = "warn", required_guardrails = ["complaints"] }
+  # Pipewright 1.4.3 (FR-130): every scoring run waits for a person (the launcher holds it until `pipewright scoring
+  # approve` or the pipewright-gate workflow). Off by default; a person deciding every run is the real cost.
+  # batch_scoring = "manual"
 }
 
 # Pipewright 1.4.1 (integrity.tf), defaults shown:
