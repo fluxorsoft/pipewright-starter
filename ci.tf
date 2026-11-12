@@ -8,7 +8,7 @@
  *
  * promotion_readers: in an environment other environments promote from (their promotion.from), the identities that
  * promote, usually the destination's CI account. They read this environment's images, release contracts, artifacts
- * and models, which `pipewright promote` copies.
+ * and models, which `pipewright promote` copies, and the event log, where promote checks the version was approved.
  */
 
 locals {
@@ -99,4 +99,24 @@ resource "google_project_iam_member" "promotion_readers" {
   project = var.project_id
   role    = "roles/aiplatform.viewer"
   member  = each.value
+}
+
+# GA QA (found live, promotion from CI): promote checks that the version was approved here, from this environment's
+# event log, so the promoting identity reads that log (the evidence dataset only) and runs the query. Without it the
+# destination's CI failed: "the event log cannot be read, so v1's approval cannot be shown". Free (IAM).
+resource "google_project_iam_member" "promotion_readers_jobs" {
+  for_each = var.event_log ? toset(var.promotion_readers) : toset([])
+
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = each.value
+}
+
+resource "google_bigquery_dataset_iam_member" "promotion_readers_events" {
+  for_each = var.event_log ? toset(var.promotion_readers) : toset([])
+
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.evidence[0].dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = each.value
 }
