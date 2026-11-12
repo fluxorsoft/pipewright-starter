@@ -114,6 +114,7 @@ resource "google_project_iam_custom_role" "agent_platform_metadata" {
     "artifactregistry.repositories.get",
     "iam.serviceAccounts.get",
     "run.services.get",
+    "run.jobs.get", # 1.4.1: doctor reads the renewer job (found in the FR-129 live test: 403 as the agent)
     "pubsub.topics.get",
     "pubsub.subscriptions.get",
   ]
