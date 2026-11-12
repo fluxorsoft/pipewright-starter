@@ -31,7 +31,9 @@ locals {
   # A deleted endpoint's ID stays reserved for a while: a rebuild soon after a teardown sets id_salt in serving.yaml
   # (1.4.2; empty by default, the IDs unchanged).
   serving_salt = try(tostring(local.serving_file.id_salt), "")
-  serving_ids  = { for k, v in local.serving_endpoints : k => tostring(1000000000 + parseint(substr(sha256("${var.environment}/${k}${local.serving_salt == "" ? "" : "/${local.serving_salt}"}"), 0, 7), 16)) }
+  # An endpoint with capture gets an ID of its own (GA QA): the ID is fixed at creation, so a change of capture makes
+  # a new endpoint (a private endpoint's logging is set only at creation). Without capture the ID is as before.
+  serving_ids = { for k, v in local.serving_endpoints : k => tostring(1000000000 + parseint(substr(sha256("${var.environment}/${k}${local.serving_salt == "" ? "" : "/${local.serving_salt}"}${try(v.capture.sample_rate, null) == null ? "" : "/capture-${v.capture.sample_rate}"}"), 0, 7), 16)) }
 }
 
 resource "terraform_data" "serving_checks" {
