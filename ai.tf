@@ -70,7 +70,10 @@ resource "google_bigquery_dataset_iam_member" "agent_features" {
   member     = local.agent_members[each.value.tenant]
 }
 
-# The manifest and the team's release contracts, nothing else in the artifacts bucket.
+# The manifest, the team's release contracts, and (1.4.3, FR-129) the records the agent's tools read: A/B tests
+# (ab-tests/: arms, allocation, analyses per arm) and decision cases (cases/: retrain cases and rollback proposals).
+# No model files, no run working files, no data. Listing object names is allowed so a tool can find a use case's
+# cases.
 resource "google_storage_bucket_iam_member" "agent_manifest" {
   for_each = local.agent_tenants
 
@@ -79,8 +82,12 @@ resource "google_storage_bucket_iam_member" "agent_manifest" {
   member = local.agent_members[each.key]
   condition {
     title       = "pipewright-agent-${each.key}"
-    description = "The manifest and release contracts only"
-    expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipewright/\") || resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/contracts/\")"
+    description = "The manifest, release contracts, A/B test records and decision cases only"
+    expression = join(" || ", ["resource.type == \"storage.googleapis.com/Bucket\"",
+      "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipewright/\")",
+      "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/contracts/\")",
+      "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/ab-tests/\")",
+    "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/cases/\")"])
   }
 }
 
