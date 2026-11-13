@@ -56,14 +56,14 @@ terraform init
 terraform plan -out=env.tfplan                       # review, then:
 terraform apply env.tfplan
 
-scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.2 launcher
+scripts/publish_launcher.sh "$(terraform output -raw images_repository)"     # copies the released 1.4.3 launcher
 # prints .../pipewright-launcher@sha256:...  -> set launcher_image in terraform.tfvars
 
 terraform plan -out=env.tfplan && terraform apply env.tfplan
 terraform output -raw environment_file               # save as environments/dev.yaml in your MLOps repository
 ```
 
-The script copies the 1.4.2 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
+The script copies the 1.4.3 launcher image (`ghcr.io/fluxorsoft/pipewright-launcher`, public) into your images
 repository by digest, and fails unless the stored digest equals the released one. For another release, pass
 `--from ghcr.io/fluxorsoft/pipewright-launcher@sha256:<digest from its release notes>`.
 
@@ -76,8 +76,8 @@ In a new folder for your team's MLOps repository, with `environments/dev.yaml` f
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
-pip install "pipewright-mlops[gcp]==1.4.2"          # the pipewright command, from PyPI
-curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.2/examples/churn/data/sample_customers.csv
+pip install "pipewright-mlops[gcp]==1.4.3"          # the pipewright command, from PyPI
+curl -sSLO https://raw.githubusercontent.com/fluxorsoft/pipewright/v1.4.3/examples/churn/data/sample_customers.csv
 gcloud storage cp sample_customers.csv \
   "gs://$(terraform -chdir=../pipewright-starter output -raw landing_bucket)/samples/demo/customers.csv"
 
