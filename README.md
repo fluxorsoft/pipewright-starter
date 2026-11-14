@@ -42,7 +42,7 @@ git clone https://github.com/fluxorsoft/pipewright-starter.git
 ```
 
 You do not need a Pipewright checkout: the CLI comes from PyPI and the launcher image from GitHub Container
-Registry. Clone [Pipewright](https://github.com/fluxorsoft/pipewright) next to this one only if you want to build
+Registry, copied into your project with Docker's `buildx` (part of Docker 23 and later). Clone [Pipewright](https://github.com/fluxorsoft/pipewright) next to this one only if you want to build
 the launcher from source (`scripts/publish_launcher.sh <repository> --build`, which also needs
 [uv](https://docs.astral.sh/uv/)).
 

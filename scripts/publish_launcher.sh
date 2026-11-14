@@ -11,8 +11,9 @@
 #   --build                build from a Pipewright checkout, default ../pipewright
 #                          (git clone https://github.com/fluxorsoft/pipewright.git); needs uv as well
 #
-# Needs Docker and gcloud (signed in). A copied release keeps its digest, and the script fails if it does not: the
-# image that was released is the image that runs. Behind a TLS-inspecting proxy, a build takes PIP_CA=<ca-bundle.pem>
+# Needs Docker (with buildx, part of Docker 23 and later) and gcloud (signed in). A copied release is copied registry to
+# registry, so it keeps its digest, and the script fails if it does not: the image that was released is the image that
+# runs. Behind a TLS-inspecting proxy, a build takes PIP_CA=<ca-bundle.pem>
 # as a build secret, never stored in a layer.
 set -euo pipefail
 
@@ -31,7 +32,6 @@ case "${MODE}" in
     [[ "${COMPONENT}" == "launcher" ]] || { echo "${SRC} is not a Pipewright launcher image" >&2; exit 2; }
     VERSION="$(docker inspect --format '{{ index .Config.Labels "dev.pipewright.version" }}' "${SRC}")"
     TAG="${IMAGE}:${VERSION}"
-    docker tag "${SRC}" "${TAG}"
     ;;
   --build)
     CORE="$(cd "${3:-$(dirname "$0")/../../pipewright}" && pwd)"
@@ -50,9 +50,18 @@ case "${MODE}" in
 esac
 
 gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin "https://${REPO%%/*}" >/dev/null
-docker push -q "${TAG}" >/dev/null
-DIGEST="$(docker inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' "${TAG}" | grep "^${IMAGE}@" | head -1)"
-if [[ "${MODE}" == "--from" && "${DIGEST#*@}" != "${SRC#*@}" ]]; then
-  echo "digest changed in transit: released ${SRC#*@}, stored ${DIGEST#*@}" >&2; exit 1
+if [[ "${MODE}" == "--from" ]]; then
+  # Registry to registry: the manifests are copied as they are, so the stored digest is the released one. A pull, tag
+  # and push re-encodes the image on Docker Desktop's containerd image store and changes the digest (found 2026-11-14).
+  docker buildx version >/dev/null 2>&1 || { echo "needs docker buildx (part of Docker 23 and later)" >&2; exit 1; }
+  docker buildx imagetools create -t "${TAG}" "${SRC}" >/dev/null 2>&1     || { echo "could not copy ${SRC} to ${TAG}" >&2; exit 1; }
+  STORED="$(docker buildx imagetools inspect "${TAG}" | awk '/^Digest:/ {print $2; exit}')"
+  DIGEST="${IMAGE}@${STORED}"
+  if [[ "${STORED}" != "${SRC#*@}" ]]; then
+    echo "digest changed in transit: released ${SRC#*@}, stored ${STORED}" >&2; exit 1
+  fi
+else
+  docker push -q "${TAG}" >/dev/null
+  DIGEST="$(docker inspect --format='{{range .RepoDigests}}{{println .}}{{end}}' "${TAG}" | grep "^${IMAGE}@" | head -1)"
 fi
 echo "${DIGEST}"
