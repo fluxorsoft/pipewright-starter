@@ -82,7 +82,10 @@ locals {
         data_write_logs      = local.data_write_on ? true : null
         audit_log_bucket     = local.audit_on ? "projects/${var.project_id}/locations/global/buckets/${local.p}-audit" : null
         audit_retention_days = local.audit_on ? var.audit_retention_days : null
-    })
+      },
+      # Pipewright 1.4.4 (the cause recorded): present only when on, so a manifest without them does not change.
+      var.failure_records ? { failure_records = true } : {},
+    var.submit_failed ? { submit_failed = true } : {})
   }
 }
 

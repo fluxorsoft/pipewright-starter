@@ -47,6 +47,11 @@ policies = {
 # audit_log_bucket_locked = true   # its retention cannot be shortened
 # platform_alert_emails   = []     # the environment's integrity alerts
 
+# Pipewright 1.4.4, the cause recorded, off by default (a use case can also set monitoring.failure_records and
+# monitoring.submit_failed in its usecase.yaml; either takes effect at the use case's next release):
+# failure_records = true           # a failed step records why (no data values); run.failed says why and whose
+# submit_failed   = true           # a run refused at submission is recorded as run.submit_failed, and not retried
+
 # Pipewright 1.4.3 (serving_health.tf), off by default:
 # serving_health = true            # the incident channel and topic for use cases' monitoring.health
 # serving_policy = {               # rules every serving use case is checked against

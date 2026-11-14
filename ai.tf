@@ -73,7 +73,7 @@ resource "google_bigquery_dataset_iam_member" "agent_features" {
 # The manifest, the team's release contracts, and (1.4.3, FR-129) the records the agent's tools read: A/B tests
 # (ab-tests/: arms, allocation, analyses per arm) and decision cases (cases/: retrain cases and rollback proposals).
 # No model files, no run working files, no data. Listing object names is allowed so a tool can find a use case's
-# cases.
+# cases. With failure_records (1.4.4), also the launcher's failed-run markers (runs/failed/).
 resource "google_storage_bucket_iam_member" "agent_manifest" {
   for_each = local.agent_tenants
 
@@ -83,13 +83,16 @@ resource "google_storage_bucket_iam_member" "agent_manifest" {
   condition {
     title       = "pipewright-agent-${each.key}"
     description = "The manifest, release contracts, A/B tests, decision cases, lineage and evaluation records only"
-    expression = join(" || ", ["resource.type == \"storage.googleapis.com/Bucket\"",
+    expression = join(" || ", concat(["resource.type == \"storage.googleapis.com/Bucket\"",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipewright/\")",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/contracts/\")",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/ab-tests/\")",
       "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/cases/\")",
       # a run's lineage and evaluation records (names, hashes, metrics), never model files: the lineage tool reads them
-    "(resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipeline-root/\") && (resource.name.endsWith(\"/lineage.json\") || resource.name.endsWith(\"/evaluation.json\")))"])
+      "(resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/pipeline-root/\") && (resource.name.endsWith(\"/lineage.json\") || resource.name.endsWith(\"/evaluation.json\")))"],
+      # Pipewright 1.4.4, with failure_records: the launcher's failed-run markers (the cause of a failed run and its
+      # owner; what run.failed holds, no data values), so the tool server's runs tool can show why a run failed
+    var.failure_records ? ["resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.artifacts.name}/objects/runs/failed/\")"] : []))
   }
 }
 

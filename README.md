@@ -21,6 +21,7 @@ top of the same building blocks.
 | Manifest | `gs://<project>-pw-artifacts/pipewright/environment.json`: what app teams point their environment file at |
 | Event log | BigQuery dataset `pw_evidence`, table `events`: every lifecycle event, kept by a Pub/Sub subscription (`event_log = false` turns it off) |
 | Image cleanup | Untagged images older than 30 days are deleted (`image_retention_days`); every image Pipewright pushes is tagged |
+| Optional: why a run failed | `failure_records = true` and `submit_failed = true` (Pipewright 1.4.4, both off by default): a failed run says why and whose it is, a run refused at submission is recorded and not retried, and an agent identity may read the launcher's `runs/failed/` markers. A use case can also switch each on in its own `usecase.yaml` |
 | Optional: CI | `github = { repository = "org/repo" }`: a Workload Identity pool and provider for that repository, a CI service account among the operators (`ci.tf`) |
 | Optional: online features | `tenants.<team>.online_features`: a Feature Store online store per team, with its feature views (`online_features.tf`) |
 | Optional: other online stores | `online_store.yaml` (copy `online_store.yaml.example`): Cloud SQL for PostgreSQL with a private network, sync jobs and lookup identities, and/or a BigQuery BI Engine reservation (`online_stores.tf`, FR-104) |

@@ -318,3 +318,24 @@ variable "platform_alert_emails" {
   type        = list(string)
   default     = []
 }
+
+# Pipewright 1.4.4, the cause recorded. Both off by default; a use case can also switch each on for itself in
+# usecase.yaml (monitoring.failure_records, monitoring.submit_failed). They take effect at a use case's next release.
+variable "failure_records" {
+  description = <<-EOT
+    Every use case released in this environment records why a failed step failed (no data values), and run.failed
+    carries the cause and whose it is: the team's or the platform's. Also lets an agent identity read the
+    launcher's runs/failed/ markers, where the cause is kept.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "submit_failed" {
+  description = <<-EOT
+    A run the orchestrator refuses at submission (a machine the region cannot provide, a refused permission) is
+    recorded as run.submit_failed, and a refusal that cannot get better is not retried.
+  EOT
+  type        = bool
+  default     = false
+}
