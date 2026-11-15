@@ -89,11 +89,27 @@ locals {
   }
 }
 
+locals {
+  # Pipewright Assist (preview): the platform's switch and what it runs with. Unset settings are left out, so
+  # Pipewright's defaults apply.
+  assist_manifest = merge({ enabled = true },
+    var.assist_settings.model == null ? {} : { model = var.assist_settings.model },
+    var.assist_settings.location == null ? {} : { location = var.assist_settings.location },
+    var.assist_settings.screening_template == null ? {} : {
+      screening = { enabled = true, template = var.assist_settings.screening_template }
+    },
+    var.assist_settings.questions_per_month == null ? {} : {
+      budget = { questions_per_month = var.assist_settings.questions_per_month }
+  })
+}
+
 resource "google_storage_bucket_object" "manifest" {
   bucket = google_storage_bucket.artifacts.name
   name   = "pipewright/environment.json"
   content = jsonencode(merge(local.manifest, length(local.online_manifest) == 0 ? {} : { features = local.online_manifest },
-  length(local.serving_file) == 0 ? {} : { serving = local.serving_manifest }))
+    length(local.serving_file) == 0 ? {} : { serving = local.serving_manifest },
+    # Pipewright 1.4.4 (Assist, a preview): present only when on, so a manifest without it does not change.
+  var.assist ? { ai = { assist = local.assist_manifest } } : {}))
   content_type  = "application/json"
   cache_control = "no-cache, max-age=0"
 }

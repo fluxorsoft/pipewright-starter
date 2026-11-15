@@ -52,6 +52,15 @@ policies = {
 # failure_records = true           # a failed step records why (no data values); run.failed says why and whose
 # submit_failed   = true           # a run refused at submission is recorded as run.submit_failed, and not retried
 
+# Pipewright 1.4.4, Pipewright Assist (preview), off by default. The platform's switch: each team still opts in for
+# itself in its usecase.yaml after reading `pipewright assist explain`. Answers incident questions from what
+# Pipewright recorded (turn failure_records on too); reads no data rows or logs; changes nothing.
+# assist = true
+# assist_settings = {
+#   screening_template = "projects/<project>/locations/<location>/templates/<name>"   # Model Armor; recommended
+#   # model = "gemini-3.8-flash", location = "global", questions_per_month = 200      # the defaults
+# }
+
 # Pipewright 1.4.3 (serving_health.tf), off by default:
 # serving_health = true            # the incident channel and topic for use cases' monitoring.health
 # serving_policy = {               # rules every serving use case is checked against

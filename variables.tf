@@ -339,3 +339,32 @@ variable "submit_failed" {
   type        = bool
   default     = false
 }
+
+# Pipewright 1.4.4, Pipewright Assist (preview). Off by default. This is the platform's switch: each team still opts
+# in for itself (assist: { enabled: true, understood: "1.4.4" } in its usecase.yaml) after reading
+# `pipewright assist explain`. Assist answers incident questions from what Pipewright recorded; it reads no data
+# rows or logs and changes nothing. The model is called in this project, as the person asking, at Google's prices.
+variable "assist" {
+  description = <<-EOT
+    Allow Pipewright Assist (preview) in this environment: teams may then switch it on for their use cases. Turn on
+    failure_records too: without recorded causes Assist can only say "read the logs".
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "assist_settings" {
+  description = <<-EOT
+    What Assist runs with, when assist is true. model: the Gemini model (default gemini-3.8-flash). location: where
+    it is called (default global; the fast model runs only there). screening_template: a Model Armor template
+    (projects/<project>/locations/<location>/templates/<name>) to screen questions, tool text and answers; without
+    one every answer says it was not screened. questions_per_month: per team (counted; default 200).
+  EOT
+  type = object({
+    model               = optional(string)
+    location            = optional(string)
+    screening_template  = optional(string)
+    questions_per_month = optional(number)
+  })
+  default = {}
+}
