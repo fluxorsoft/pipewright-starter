@@ -2,7 +2,7 @@
 # Puts the Pipewright launcher image into this environment's images repository and prints it pinned by digest: set
 # it as launcher_image in terraform.tfvars and apply again.
 #
-#   scripts/publish_launcher.sh <images repository>                                   copy the 1.4.3 release (default)
+#   scripts/publish_launcher.sh <images repository>                                   copy the 1.4.4 release (default)
 #   scripts/publish_launcher.sh <images repository> --from <image>@sha256:...         copy another release
 #   scripts/publish_launcher.sh <images repository> --build [<pipewright checkout>]   build from source
 #
@@ -17,7 +17,7 @@
 # as a build secret, never stored in a layer.
 set -euo pipefail
 
-RELEASE="ghcr.io/fluxorsoft/pipewright-launcher@sha256:8868e6ced662d76b6dfac6209dfce563a54c5bd5571fcc4ea7a6a7580ac18588"   # 1.4.3
+RELEASE="ghcr.io/fluxorsoft/pipewright-launcher@sha256:22a047acd84cd5d425054170c6374bacba046708cb9493e9e7207c3707bf73bd"   # 1.4.4
 REPO="${1:?usage: $0 <images repository> [--from <image>@sha256:... | --build [<pipewright checkout>]]}"
 MODE="${2:---from}"
 IMAGE="${REPO}/pipewright-launcher"
