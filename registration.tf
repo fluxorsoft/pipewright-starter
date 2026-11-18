@@ -15,37 +15,51 @@
 # directly and gets 403 (`pipewright validate` and `pipewright doctor` say which).
 #
 # Cost: none (one extra request to the launcher per training run; the launcher scales to zero).
+#
+# Pipewright FR-149, off by default: policies.feature_registry = "runners_read". The Feature Store registry is one per
+# project and region, and roles/aiplatform.user lets every runner create, change and delete any team's feature
+# groups, features, online stores and views. With runners_read the runner's custom role (the one above) also leaves
+# out those writes: runs still read groups and features, and registering them stays with the people and producer
+# identities who do it today (`pipewright features register`, `pipewright features sync`). No runner step writes the
+# registry (checked for 1.4.4). runners_write (the default) keeps roles/aiplatform.user as before. Cost: none.
 
 locals {
   registration_launcher = try(var.policies.registration, "runner") == "launcher"
-  runner_role           = local.registration_launcher ? google_project_iam_custom_role.runner[0].name : "roles/aiplatform.user"
+  feature_registry_read = coalesce(try(var.policies.feature_registry, null), "runners_write") == "runners_read"
+  runner_custom         = local.registration_launcher || local.feature_registry_read
+  runner_role           = local.runner_custom ? google_project_iam_custom_role.runner[0].name : "roles/aiplatform.user"
+  # Feature Store writes a runner never needs (FR-149): groups, features, online stores, views, direct writes of
+  # values, feature monitors, and the legacy featurestores and entity types. Reads stay (checked against
+  # roles/aiplatform.user's permissions, 2026-11-18: 31 writes left out, every get, list and read kept)
+  feature_writes = "^aiplatform\\.(featureGroups|features|featureOnlineStores|featureViews|featurestores|entityTypes|featureMonitors|featureMonitorJobs)\\.(create|update|delete|sync|directWrite|batchCreateFeatures|importFeatureValues|writeFeatureValues|deleteFeatureValues|exportFeatureValues|importFeatures|writeFeatures|exportFeatures|setIamPolicy)$"
 }
 
 data "google_iam_role" "aiplatform_user" {
-  count = local.registration_launcher ? 1 : 0
+  count = local.runner_custom ? 1 : 0
   name  = "roles/aiplatform.user"
 }
 
 # Custom roles take only the permissions that support them (aiplatform.user also holds resourcemanager.projects.list,
 # which a custom role refuses: found in the 1.4.3 battle test).
 data "google_iam_testable_permissions" "project" {
-  count                = local.registration_launcher ? 1 : 0
+  count                = local.runner_custom ? 1 : 0
   full_resource_name   = "//cloudresourcemanager.googleapis.com/projects/${var.project_id}"
   stages               = ["GA", "BETA", "ALPHA", "DEPRECATED"]
   custom_support_level = "SUPPORTED"
 }
 
 resource "google_project_iam_custom_role" "runner" {
-  count = local.registration_launcher ? 1 : 0
+  count = local.runner_custom ? 1 : 0
 
   project     = var.project_id
   role_id     = "${replace(local.p, "-", "_")}_runner"
   title       = "Pipewright runner (${var.environment}): Agent Platform user without registry writes"
-  description = "roles/aiplatform.user without aiplatform.models.upload, update and delete (Pipewright FR-100). Managed by Terraform."
+  description = "roles/aiplatform.user without ${join(" or ", compact([local.registration_launcher ? "model registry writes (FR-100)" : "", local.feature_registry_read ? "Feature Store writes (FR-149)" : ""]))}. Managed by Terraform."
   permissions = sort(setsubtract(setintersection(data.google_iam_role.aiplatform_user[0].included_permissions,
-    [for x in data.google_iam_testable_permissions.project[0].permissions : x.name]), [
-    "aiplatform.models.upload", "aiplatform.models.update", "aiplatform.models.delete",
-  ]))
+    [for x in data.google_iam_testable_permissions.project[0].permissions : x.name]), concat(
+    local.registration_launcher ? ["aiplatform.models.upload", "aiplatform.models.update", "aiplatform.models.delete"] : [],
+    local.feature_registry_read ? [for x in data.google_iam_role.aiplatform_user[0].included_permissions : x if can(regex(local.feature_writes, x))] : [],
+  )))
 }
 
 # The launcher's answer to each registration request, readable by the tenant's runner only. Needed where runners are
