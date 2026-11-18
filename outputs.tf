@@ -47,6 +47,15 @@ output "github_variables" {
   }
 }
 
+output "github_checks_variables" {
+  description = "Pipewright FR-131, with github.checks_environment: the variables of the checks GitHub environment (the read-only identity)."
+  value = try(var.github.checks_environment, null) == null ? null : {
+    environment                = var.github.checks_environment
+    GCP_WIF_PROVIDER           = google_iam_workload_identity_pool_provider.github[0].name
+    PIPEWRIGHT_SERVICE_ACCOUNT = google_service_account.ci_checks[0].email
+  }
+}
+
 output "agent_service_accounts" {
   description = "AI build assistance: each team's agent identity (agent_identity = true), for `pipewright mcp`."
   value       = { for t, sa in google_service_account.agent : t => sa.email }

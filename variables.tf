@@ -246,15 +246,32 @@ variable "github" {
   description = <<-EOT
     A CI identity for GitHub Actions in one repository (ci.tf): { repository = "org/repo" }. It becomes an operator;
     the outputs github_variables give the GitHub environment's variables. null: no CI identity.
+    Pipewright FR-131, both off by default:
+      checks_environment: the GitHub environment pull request checks run in (`pipewright ci init
+        --checks-environment`). A read-only identity is made for it, and only that environment's jobs may act as it.
+      environments: the GitHub environments the CI identity may act in (releases, decisions, gates, promotion). Unset:
+        any workflow of the repository, as before. Set it so a branch's code in another job cannot release or approve.
   EOT
   type = object({
-    repository = string
+    repository         = string
+    checks_environment = optional(string)
+    environments       = optional(list(string))
   })
   default = null
 
   validation {
     condition     = var.github == null || can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github.repository))
     error_message = "github.repository: org/repo."
+  }
+
+  validation {
+    condition     = var.github == null || try(var.github.checks_environment == null || !contains(coalesce(var.github.environments, []), var.github.checks_environment), true)
+    error_message = "github.checks_environment must not be one of github.environments: the checks identity only reads."
+  }
+
+  validation {
+    condition     = var.github == null || try(var.github.environments == null || length(var.github.environments) > 0, true)
+    error_message = "github.environments: list at least one GitHub environment, or leave it unset (the whole repository)."
   }
 }
 
