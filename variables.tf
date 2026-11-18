@@ -173,9 +173,9 @@ variable "policies" {
     # Pipewright 1.4.3 (FR-100): who writes the model registry. runner (default, as before) or launcher: runners
     # cannot write it; the launcher registers each version after its checks (registration.tf).
     registration = optional(string)
-    # Pipewright FR-149, off by default: who may write the Feature Store registry. runners_write (default, as before:
-    # roles/aiplatform.user lets any runner change any team's feature groups) or runners_read: runners only read it
-    # (registration.tf). Cost: none.
+    # Pipewright FR-149: who may write the Feature Store registry. runners_read (the default since phase 11): runners
+    # only read it (registration.tf); runners_write: roles/aiplatform.user as before, which lets any runner change any
+    # team's feature groups. Cost: none.
     feature_registry = optional(string)
     # Pipewright 1.4.3 (FR-130), off by default: manual makes every scoring run wait for a person (the launcher
     # holds it; `pipewright scoring approve` or the pipewright-gate workflow submits it). Cost: one small object
@@ -203,7 +203,7 @@ variable "policies" {
   }
 
   validation {
-    condition     = contains(["runners_write", "runners_read"], coalesce(var.policies.feature_registry, "runners_write"))
+    condition     = contains(["runners_write", "runners_read"], coalesce(var.policies.feature_registry, "runners_read"))
     error_message = "policies.feature_registry: runners_write or runners_read."
   }
 

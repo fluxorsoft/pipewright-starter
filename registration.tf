@@ -16,16 +16,18 @@
 #
 # Cost: none (one extra request to the launcher per training run; the launcher scales to zero).
 #
-# Pipewright FR-149, off by default: policies.feature_registry = "runners_read". The Feature Store registry is one per
+# Pipewright FR-149, ON by default (founder, 2026-11-18: a security fix; the one exception to "every change after
+# 1.0 is off by default"): policies.feature_registry = "runners_read". The Feature Store registry is one per
 # project and region, and roles/aiplatform.user lets every runner create, change and delete any team's feature
 # groups, features, online stores and views. With runners_read the runner's custom role (the one above) also leaves
 # out those writes: runs still read groups and features, and registering them stays with the people and producer
 # identities who do it today (`pipewright features register`, `pipewright features sync`). No runner step writes the
-# registry (checked for 1.4.4). runners_write (the default) keeps roles/aiplatform.user as before. Cost: none.
+# registry (checked for 1.4.4). runners_write keeps roles/aiplatform.user as before 1.4.5: set it only for a team
+# whose own components register feature groups from a run (they would get 403). Cost: none.
 
 locals {
   registration_launcher = try(var.policies.registration, "runner") == "launcher"
-  feature_registry_read = coalesce(try(var.policies.feature_registry, null), "runners_write") == "runners_read"
+  feature_registry_read = coalesce(try(var.policies.feature_registry, null), "runners_read") == "runners_read"
   runner_custom         = local.registration_launcher || local.feature_registry_read
   runner_role           = local.runner_custom ? google_project_iam_custom_role.runner[0].name : "roles/aiplatform.user"
   # Feature Store writes a runner never needs (FR-149): groups, features, online stores, views, direct writes of
