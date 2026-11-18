@@ -96,6 +96,10 @@ locals {
   checks_roles = local.checks_identity ? toset([
     "roles/aiplatform.viewer", "roles/bigquery.metadataViewer", "roles/bigquery.jobUser", "roles/monitoring.viewer",
     "roles/cloudscheduler.viewer", "roles/artifactregistry.reader",
+    # found in the phase 11 round: doctor's environment checks read the buckets, identities, the launcher service and
+    # job, and the topics and subscriptions (viewers only)
+    "roles/storage.bucketViewer", "roles/iam.serviceAccountViewer", "roles/run.viewer", "roles/pubsub.viewer",
+    "roles/logging.viewer",
   ]) : toset([])
 }
 
