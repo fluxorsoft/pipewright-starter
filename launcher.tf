@@ -50,7 +50,7 @@ resource "google_cloud_run_v2_service" "launcher" {
           cpu    = "1"
           memory = "1Gi"
         }
-        cpu_idle = !try(var.otlp.cpu_always, false)
+        cpu_idle = !coalesce(try(var.otlp.cpu_always, null), false)
       }
 
       env {
@@ -83,7 +83,7 @@ resource "google_cloud_run_v2_service" "launcher" {
             cpu    = "1"
             memory = "256Mi"
           }
-          cpu_idle = !try(var.otlp.cpu_always, false)
+          cpu_idle = !coalesce(try(var.otlp.cpu_always, null), false)
         }
         volume_mounts {
           name       = "otel-config"
