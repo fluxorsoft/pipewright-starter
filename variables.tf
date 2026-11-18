@@ -394,3 +394,32 @@ variable "assist_settings" {
   })
   default = {}
 }
+
+variable "otlp" {
+  description = <<-EOT
+    Pipewright FR-127, off by default (null): the launcher's metrics and traces over OpenTelemetry (telemetry.tf).
+    {} runs Google's OpenTelemetry Collector as a sidecar, sending to Cloud Trace and Managed Service for Prometheus.
+    endpoint: send straight to an OTLP/HTTP backend instead (https; Grafana Cloud, a vendor), with headers_secret a
+    Secret Manager version holding key=value headers (a token). sample_ratio: the share of traces kept (default 1).
+    cpu_always: instance-based billing, so telemetry is sent at once (default false). collector_image: pin another
+    build of the Collector (default otelcol-google 0.141.0).
+  EOT
+  type = object({
+    endpoint        = optional(string)
+    headers_secret  = optional(string)
+    sample_ratio    = optional(number)
+    cpu_always      = optional(bool)
+    collector_image = optional(string)
+  })
+  default = null
+
+  validation {
+    condition     = var.otlp == null || try(var.otlp.endpoint == null || startswith(var.otlp.endpoint, "https://"), true)
+    error_message = "otlp.endpoint: an https URL (plain http only to the sidecar, which the starter sets itself)."
+  }
+
+  validation {
+    condition     = var.otlp == null || try(var.otlp.headers_secret == null || can(regex("^projects/[^/]+/secrets/[^/]+/versions/[^/]+$", var.otlp.headers_secret)), true)
+    error_message = "otlp.headers_secret: projects/<project>/secrets/<name>/versions/<version>."
+  }
+}

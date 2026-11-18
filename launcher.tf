@@ -34,14 +34,23 @@ resource "google_cloud_run_v2_service" "launcher" {
     }
 
     containers {
+      name  = local.otlp_collector ? "launcher" : null # named only beside the FR-127 sidecar
       image = var.launcher_image
+
+      # FR-127: with a sidecar, Cloud Run needs the serving container's port named
+      dynamic "ports" {
+        for_each = local.otlp_collector ? [1] : []
+        content {
+          container_port = 8080
+        }
+      }
 
       resources {
         limits = {
           cpu    = "1"
           memory = "1Gi"
         }
-        cpu_idle = true
+        cpu_idle = !try(var.otlp.cpu_always, false)
       }
 
       env {
@@ -57,6 +66,50 @@ resource "google_cloud_run_v2_service" "launcher" {
         timeout_seconds       = 4
         http_get {
           path = "/health"
+        }
+      }
+    }
+
+    # FR-127: Google's build of the OpenTelemetry Collector beside the launcher (telemetry.tf). The launcher does not
+    # wait for it: a Collector that does not start costs telemetry, never runs.
+    dynamic "containers" {
+      for_each = local.otlp_collector ? [1] : []
+      content {
+        name  = "otel-collector"
+        image = try(var.otlp.collector_image, null) != null ? var.otlp.collector_image : "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.141.0"
+        args  = ["--config=/etc/otelcol-google/config.yaml"]
+        resources {
+          limits = {
+            cpu    = "1"
+            memory = "256Mi"
+          }
+          cpu_idle = !try(var.otlp.cpu_always, false)
+        }
+        volume_mounts {
+          name       = "otel-config"
+          mount_path = "/etc/otelcol-google/"
+        }
+        startup_probe {
+          period_seconds    = 5
+          failure_threshold = 12
+          http_get {
+            path = "/"
+            port = 13133
+          }
+        }
+      }
+    }
+
+    dynamic "volumes" {
+      for_each = local.otlp_collector ? [1] : []
+      content {
+        name = "otel-config"
+        secret {
+          secret = google_secret_manager_secret.otel_config[0].secret_id
+          items {
+            version = google_secret_manager_secret_version.otel_config[0].version
+            path    = "config.yaml"
+          }
         }
       }
     }

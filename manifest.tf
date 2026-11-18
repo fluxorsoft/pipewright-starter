@@ -86,6 +86,10 @@ locals {
       },
       # Pipewright 1.4.4 (the cause recorded): present only when on, so a manifest without them does not change.
       var.failure_records ? { failure_records = true } : {},
+      # FR-127: the launcher's telemetry (telemetry.tf); present only when on
+      local.otlp_on ? { otlp = merge({ endpoint = local.otlp_endpoint },
+        try(var.otlp.headers_secret, null) != null ? { headers_secret = var.otlp.headers_secret } : {},
+      try(var.otlp.sample_ratio, null) != null ? { sample_ratio = var.otlp.sample_ratio } : {}) } : {},
     var.submit_failed ? { submit_failed = true } : {})
   }
 }
