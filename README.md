@@ -284,8 +284,8 @@ cannot overwrite another team's models or evaluation records.
 ## Questions, help and production environments
 
 Want help setting up Pipewright, or an environment with private networking, customer-managed keys and guardrails?
-Email [hello@fluxorsoft.com](mailto:hello@fluxorsoft.com), or see
-[Fluxor Software](https://www.fluxorsoft.com/pipewright.html). Questions and ideas are welcome in the Pipewright
+Email [hello@getpipewright.dev](mailto:hello@getpipewright.dev), or see
+[getpipewright.dev](https://www.getpipewright.dev). Questions and ideas are welcome in the Pipewright
 repository's GitHub Discussions.
 
 ## License
