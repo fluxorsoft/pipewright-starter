@@ -100,6 +100,12 @@ resource "google_project_iam_member" "runner" {
   project = var.project_id
   role    = each.value.role
   member  = local.runner_members[each.value.tenant]
+
+  # Replacing the grant (FR-100 on, or the FR-149 role on upgrade to 1.4.5) adds the new role before removing the
+  # old, so a step running during the apply never loses its Agent Platform rights (found in the 1.4.5 GA QA).
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Pipeline roots and model artifacts. Shared by tenants in this starter: give each team its own bucket or prefix
