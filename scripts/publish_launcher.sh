@@ -17,7 +17,7 @@
 # as a build secret, never stored in a layer.
 set -euo pipefail
 
-RELEASE="ghcr.io/fluxorsoft/pipewright-launcher@sha256:22a047acd84cd5d425054170c6374bacba046708cb9493e9e7207c3707bf73bd"   # 1.4.4
+RELEASE="ghcr.io/fluxorsoft/pipewright-launcher@sha256:9118ec478b9b435cb0cd1f5c10bd82c3ed6b9e11c85bef127441cd8f321d7cf8"   # 1.4.5
 REPO="${1:?usage: $0 <images repository> [--from <image>@sha256:... | --build [<pipewright checkout>]]}"
 MODE="${2:---from}"
 IMAGE="${REPO}/pipewright-launcher"
